@@ -24,8 +24,7 @@ from omegaconf import DictConfig, OmegaConf
 from torch import Tensor as T
 from torch import nn
 
-from dpr.models import init_biencoder_components as init_teacher_biencoder_components # init teacher biencoder
-from dpr.models import init_student_biencoder_components # inti student biencoder
+from dpr.models import init_biencoder_components 
 from dpr.models.biencoder import BiEncoderBatch
 from dpr.models.student_biencoder import StudentBiEncoderNllLoss
 from dpr.options import (
@@ -78,8 +77,8 @@ class StudentBiEncoderTrainer(object):
             saved_state = load_states_from_checkpoint(model_file)
             set_cfg_params_from_state(saved_state.encoder_params, cfg)
 
-        _, teacher_model, _ = init_teacher_biencoder_components(cfg.encoder.teacher_encoder_model_type, cfg)
-        tensorizer, student_model, optimizer = init_student_biencoder_components(cfg.encoder.student_encoder_model_type, cfg)
+        _, teacher_model, _ = init_biencoder_components(cfg.encoder.teacher_encoder_model_type, cfg)
+        tensorizer, student_model, optimizer = init_biencoder_components(cfg.encoder.student_encoder_model_type, cfg)
         student_model.set_teacher(teacher_model)
         
         student_model, optimizer = setup_for_distributed_mode(
