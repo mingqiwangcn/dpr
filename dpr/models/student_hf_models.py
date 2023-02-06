@@ -30,22 +30,22 @@ else:
     from transformers.tokenization_roberta import RobertaTokenizer
 
 from dpr.utils.data_utils import Tensorizer
-from dpr.models.biencoder import BiEncoder
+from dpr.models.student_biencoder import StudentBiEncoder
 from .reader import Reader
 
 logger = logging.getLogger(__name__)
 
 
-def get_bert_biencoder_components(cfg, inference_only: bool = False, **kwargs):
+def get_student_bert_biencoder_components(cfg, inference_only: bool = False, **kwargs):
     dropout = cfg.encoder.dropout if hasattr(cfg.encoder, "dropout") else 0.0
-    question_encoder = HFBertEncoder.init_encoder(
+    question_encoder = StudentHFBertEncoder.init_encoder(
         cfg.encoder.pretrained_model_cfg,
         projection_dim=cfg.encoder.projection_dim,
         dropout=dropout,
         pretrained=cfg.encoder.pretrained,
         **kwargs
     )
-    ctx_encoder = HFBertEncoder.init_encoder(
+    ctx_encoder = StudentHFBertEncoder.init_encoder(
         cfg.encoder.pretrained_model_cfg,
         projection_dim=cfg.encoder.projection_dim,
         dropout=dropout,
@@ -54,7 +54,7 @@ def get_bert_biencoder_components(cfg, inference_only: bool = False, **kwargs):
     )
 
     fix_ctx_encoder = cfg.encoder.fix_ctx_encoder if hasattr(cfg.encoder, "fix_ctx_encoder") else False
-    biencoder = BiEncoder(question_encoder, ctx_encoder, fix_ctx_encoder=fix_ctx_encoder)
+    biencoder = StudentBiEncoder(question_encoder, ctx_encoder, fix_ctx_encoder=fix_ctx_encoder)
 
     optimizer = (
         get_optimizer(
@@ -196,7 +196,7 @@ def get_roberta_tokenizer(pretrained_cfg_name: str, do_lower_case: bool = True):
     return RobertaTokenizer.from_pretrained(pretrained_cfg_name, do_lower_case=do_lower_case)
 
 
-class HFBertEncoder(BertModel):
+class SudentHFBertEncoder(BertModel):
     def __init__(self, config, project_dim: int = 0):
         BertModel.__init__(self, config)
         assert config.hidden_size > 0, "Encoder hidden_size can't be zero"

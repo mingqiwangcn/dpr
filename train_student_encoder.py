@@ -24,8 +24,10 @@ from omegaconf import DictConfig, OmegaConf
 from torch import Tensor as T
 from torch import nn
 
-from dpr.models import init_biencoder_components
-from dpr.models.biencoder import BiEncoderNllLoss, BiEncoderBatch
+from dpr.models import init_biencoder_components as init_teacher_biencoder_components # init teacher biencoder
+from dpr.models import init_student_biencoder_components # inti student biencoder
+from dpr.models.biencoder import BiEncoderBatch
+from dpr.models.student_biencoder import StudentBiEncoderNllLoss
 from dpr.options import (
     setup_cfg_gpu,
     set_seed,
@@ -55,7 +57,7 @@ logger = logging.getLogger()
 setup_logger(logger)
 
 
-class BiEncoderTrainer(object):
+class StudentBiEncoderTrainer(object):
     """
     BiEncoder training pipeline component. Can be used to initiate or resume training and validate the trained model
     using either binary classification's NLL loss or average rank of the question's gold passages across dataset
@@ -76,10 +78,12 @@ class BiEncoderTrainer(object):
             saved_state = load_states_from_checkpoint(model_file)
             set_cfg_params_from_state(saved_state.encoder_params, cfg)
 
-        tensorizer, model, optimizer = init_biencoder_components(cfg.encoder.encoder_model_type, cfg)
-
-        model, optimizer = setup_for_distributed_mode(
-            model,
+        _, teacher_model, _ = init_teacher_biencoder_components(cfg.encoder.teacher_encoder_model_type, cfg)
+        tensorizer, student_model, optimizer = init_student_biencoder_components(cfg.encoder.student_encoder_model_type, cfg)
+        student_model.set_teacher(teacher_model)
+        
+        student_model, optimizer = setup_for_distributed_mode(
+            student_model,
             optimizer,
             cfg.device,
             cfg.n_gpu,
@@ -87,7 +91,8 @@ class BiEncoderTrainer(object):
             cfg.fp16,
             cfg.fp16_opt_level,
         )
-        self.biencoder = model
+        
+        self.biencoder = student_model
         self.optimizer = optimizer
         self.tensorizer = tensorizer
         self.start_epoch = 0
@@ -314,7 +319,7 @@ class BiEncoderTrainer(object):
         data_iterator = self.dev_iterator
 
         sub_batch_size = cfg.train.val_av_rank_bsz
-        sim_score_f = BiEncoderNllLoss.get_similarity_function()
+        sim_score_f = StudentBiEncoderNllLoss.get_similarity_function()
         q_represenations = []
         ctx_represenations = []
         positive_idx_per_question = []
@@ -724,7 +729,7 @@ def _do_biencoder_fwd_pass(
 
     local_q_vector, local_ctx_vectors = model_out
 
-    loss_function = BiEncoderNllLoss()
+    loss_function = StudentBiEncoderNllLoss()
 
     loss, is_correct = _calc_loss(
         cfg,
@@ -744,7 +749,7 @@ def _do_biencoder_fwd_pass(
     return loss, is_correct
 
 
-@hydra.main(config_path="conf", config_name="biencoder_train_cfg")
+@hydra.main(config_path="conf", config_name="student_biencoder_train_cfg")
 def main(cfg: DictConfig):
     if cfg.train.gradient_accumulation_steps < 1:
         raise ValueError(
@@ -763,7 +768,7 @@ def main(cfg: DictConfig):
         logger.info("CFG (after gpu  configuration):")
         logger.info("%s", OmegaConf.to_yaml(cfg))
 
-    trainer = BiEncoderTrainer(cfg)
+    trainer = StudentBiEncoderTrainer(cfg)
 
     if cfg.train_datasets and len(cfg.train_datasets) > 0:
         trainer.run_train()

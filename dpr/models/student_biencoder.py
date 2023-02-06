@@ -23,21 +23,10 @@ from torch import nn
 from dpr.data.biencoder_data import BiEncoderSample
 from dpr.utils.data_utils import Tensorizer
 from dpr.utils.model_utils import CheckpointState
+from .biencoder import BiEncoderBatch
 
 logger = logging.getLogger(__name__)
 
-BiEncoderBatch = collections.namedtuple(
-    "BiENcoderInput",
-    [
-        "question_ids",
-        "question_segments",
-        "context_ids",
-        "ctx_segments",
-        "is_positive",
-        "hard_negatives",
-        "encoder_type",
-    ],
-)
 # TODO: it is only used by _select_span_with_token. Move them to utils
 rnd = random.Random(0)
 
@@ -59,7 +48,7 @@ def cosine_scores(q_vector: T, ctx_vectors: T):
     return F.cosine_similarity(q_vector, ctx_vectors, dim=1)
 
 
-class BiEncoder(nn.Module):
+class StudentBiEncoder(nn.Module):
     """Bi-Encoder model component. Encapsulates query/question and context/passage encoders."""
 
     def __init__(
@@ -69,11 +58,14 @@ class BiEncoder(nn.Module):
         fix_q_encoder: bool = False,
         fix_ctx_encoder: bool = False,
     ):
-        super(BiEncoder, self).__init__()
+        super(StudentBiEncoder, self).__init__()
         self.question_model = question_model
         self.ctx_model = ctx_model
         self.fix_q_encoder = fix_q_encoder
         self.fix_ctx_encoder = fix_ctx_encoder
+
+    def set_teacher(self, teacher):
+        self.teacher = teacher
 
     @staticmethod
     def get_representation(
@@ -251,7 +243,7 @@ class BiEncoder(nn.Module):
         return self.state_dict()
 
 
-class BiEncoderNllLoss(object):
+class StudentBiEncoderNllLoss(object):
     def calc(
         self,
         q_vectors: T,
@@ -290,7 +282,7 @@ class BiEncoderNllLoss(object):
 
     @staticmethod
     def get_scores(q_vector: T, ctx_vectors: T) -> T:
-        f = BiEncoderNllLoss.get_similarity_function()
+        f = StudentBiEncoderNllLoss.get_similarity_function()
         return f(q_vector, ctx_vectors)
 
     @staticmethod
