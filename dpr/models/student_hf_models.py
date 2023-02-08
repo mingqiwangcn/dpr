@@ -202,6 +202,12 @@ class StudentHFBertEncoder(BertModel):
         assert config.hidden_size > 0, "Encoder hidden_size can't be zero"
         self.encode_proj = nn.Linear(config.hidden_size, project_dim) if project_dim != 0 else None
         self.init_weights()
+    
+    @staticmethod
+    def set_small_size(cfg):
+        cfg.hidden_size = 312
+        cfg.intermediate_size = 1024
+        cfg.num_hidden_layers = 3 
 
     @classmethod
     def init_encoder(
@@ -209,14 +215,18 @@ class StudentHFBertEncoder(BertModel):
     ) -> BertModel:
         logger.info("Initializing HF BERT Encoder. cfg_name=%s", cfg_name)
         cfg = BertConfig.from_pretrained(cfg_name if cfg_name else "bert-base-uncased")
+        
+        StudentHFBertEncoder.set_small_size(cfg)
+
         if dropout != 0:
             cfg.attention_probs_dropout_prob = dropout
             cfg.hidden_dropout_prob = dropout
 
+        pretrained = False # since student bert size is different, so not use pretrained bert
         if pretrained:
             return cls.from_pretrained(cfg_name, config=cfg, project_dim=projection_dim, **kwargs)
         else:
-            return HFBertEncoder(cfg, project_dim=projection_dim)
+            return StudentHFBertEncoder(cfg, project_dim=projection_dim)
 
     def forward(
         self,
