@@ -41,5 +41,6 @@ setup(
         "jsonlines",
         "soundfile",
         "editdistance",
+        "gnureadline",
     ],
 )
