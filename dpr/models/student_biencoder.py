@@ -244,7 +244,7 @@ class StudentBiEncoder(nn.Module):
 
 
 class StudentBiEncoderNllLoss(object):
-    def cal_logits(
+    def calc_logits(
         self,
         q_vectors: T,
         ctx_vectors: T,

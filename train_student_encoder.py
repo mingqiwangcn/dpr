@@ -76,7 +76,7 @@ class StudentBiEncoderTrainer(object):
 
         _, teacher_model, _ = init_biencoder_components(cfg.encoder.teacher_encoder_model_type, cfg)
         teacher_model.load_state(teacher_state, strict=False)
-         
+          
         # if model file is specified, encoder parameters from saved state should be used for initialization
         model_file = get_model_file(cfg, cfg.checkpoint_file_name)
         saved_state = None
@@ -85,6 +85,8 @@ class StudentBiEncoderTrainer(object):
             set_cfg_params_from_state(saved_state.encoder_params, cfg)
         
         tensorizer, student_model, optimizer = init_biencoder_components(cfg.encoder.student_encoder_model_type, cfg)
+        
+        teacher_model.eval()
         student_model.set_teacher(teacher_model)
         
         student_model, optimizer = setup_for_distributed_mode(
@@ -693,6 +695,34 @@ def _print_norms(model):
     return total_norm
 
 
+def calc_teacher_fwd_logits(
+    teacher,
+    input: BiEncoderBatch,
+    q_attn_mask,
+    ctx_attn_mask,
+    encoder_type,
+    rep_positions,
+    score_temperature
+):
+    with torch.no_grad():
+        model_out = teacher(
+            input.question_ids,
+            input.question_segments,
+            q_attn_mask,
+            input.context_ids,
+            input.ctx_segments,
+            ctx_attn_mask,
+            encoder_type=encoder_type,
+            representation_token_pos=rep_positions,
+        )
+
+    local_q_vector, local_ctx_vectors = model_out   
+    loss_function = StudentBiEncoderNllLoss() # currently in the student class
+    # not support distributed mode right now
+    logits = loss_function.calc_logits(local_q_vector, local_ctx_vectors, score_temperature=score_temperature) 
+    return logits 
+     
+
 def _do_biencoder_fwd_pass(
     model: nn.Module,
     input: BiEncoderBatch,
@@ -735,8 +765,8 @@ def _do_biencoder_fwd_pass(
     local_q_vector, local_ctx_vectors = model_out
 
     loss_function = StudentBiEncoderNllLoss()
-
-    loss, is_correct = _calc_loss(
+    
+    student_loss, is_correct = _calc_loss(
         cfg,
         loss_function,
         local_q_vector,
@@ -745,6 +775,21 @@ def _do_biencoder_fwd_pass(
         input.hard_negatives,
         loss_scale=loss_scale,
     )
+   
+    loss = None
+    if model.training:
+        teacher_soft_logits = calc_teacher_fwd_logits(
+            model.teacher, input, q_attn_mask, ctx_attn_mask, encoder_type, rep_positions, cfg.score_temperature)
+        
+        student_soft_logits = loss_function.calc_logits(local_q_vector, local_ctx_vectors, 
+                                                                score_temperature=cfg.score_temperature) 
+        distill_loss_fn = nn.MSELoss()
+        distill_loss = distill_loss_fn(student_soft_logits, teacher_soft_logits)
+        
+        loss = distill_loss * cfg.distill_loss_weight + (1 - cfg.distill_loss_weight) * student_loss
+    else:
+        loss = student_loss
+
     is_correct = is_correct.sum().item()
 
     if cfg.n_gpu > 1:
@@ -762,7 +807,9 @@ def main(cfg: DictConfig):
                 cfg.train.gradient_accumulation_steps
             )
         )
-
+    assert (cfg.distill_loss_weight > 0 and cfg.distill_loss_weight < 1)
+    assert (cfg.n_gpu is None) or (cfg.n_gpu == 1)
+     
     if cfg.output_dir is not None:
         os.makedirs(cfg.output_dir, exist_ok=True)
 
