@@ -244,6 +244,24 @@ class StudentBiEncoder(nn.Module):
 
 
 class StudentBiEncoderNllLoss(object):
+    def cal_logits(
+        self,
+        q_vectors: T,
+        ctx_vectors: T,
+        score_temperature = None
+    ):
+        scores = self.get_scores(q_vectors, ctx_vectors)
+
+        if len(q_vectors.size()) > 1:
+            q_num = q_vectors.size(0)
+            scores = scores.view(q_num, -1)
+
+        if score_temperature is not None:
+            scores = scores / score_temperature
+        logits = F.log_softmax(scores, dim=1)
+        return logits 
+
+
     def calc(
         self,
         q_vectors: T,
