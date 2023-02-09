@@ -56,6 +56,13 @@ logger = logging.getLogger()
 setup_logger(logger)
 
 
+class Teacher:
+    def __init__(self, model, cfg):
+        self.model = model
+        self.model.to(cfg.device)
+        self.model.eval()
+        
+
 class StudentBiEncoderTrainer(object):
     """
     BiEncoder training pipeline component. Can be used to initiate or resume training and validate the trained model
@@ -86,8 +93,8 @@ class StudentBiEncoderTrainer(object):
         
         tensorizer, student_model, optimizer = init_biencoder_components(cfg.encoder.student_encoder_model_type, cfg)
         
-        teacher_model.eval()
-        student_model.set_teacher(teacher_model)
+        teacher = Teacher(teacher_model, cfg)
+        student_model.set_teacher(teacher)
         
         student_model, optimizer = setup_for_distributed_mode(
             student_model,
@@ -705,7 +712,7 @@ def calc_teacher_fwd_logits(
     score_temperature
 ):
     with torch.no_grad():
-        model_out = teacher(
+        model_out = teacher.model(
             input.question_ids,
             input.question_segments,
             q_attn_mask,
