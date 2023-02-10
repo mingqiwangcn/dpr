@@ -209,6 +209,18 @@ class StudentHFBertEncoder(BertModel):
         cfg.intermediate_size = 1024
         cfg.num_hidden_layers = 3 
 
+    @staticmethod
+    def reduce_one_layer(model):
+        if len(model.encoder.layer) < 2:
+            return
+        updated_layer = nn.ModuleList()
+        mid_index =  len(model.encoder.layer) // 2
+        for idx, module in enumerate(model.encoder.layer):
+            if idx != mid_index:
+                updated_layer.append(module)
+        model.encoder.layer = updated_layer
+         
+
     @classmethod
     def init_encoder(
         cls, cfg_name: str, projection_dim: int = 0, dropout: float = 0.1, pretrained: bool = True, **kwargs
@@ -216,17 +228,18 @@ class StudentHFBertEncoder(BertModel):
         logger.info("Initializing HF BERT Encoder. cfg_name=%s", cfg_name)
         cfg = BertConfig.from_pretrained(cfg_name if cfg_name else "bert-base-uncased")
         
-        StudentHFBertEncoder.set_small_size(cfg)
-
         if dropout != 0:
             cfg.attention_probs_dropout_prob = dropout
             cfg.hidden_dropout_prob = dropout
 
-        pretrained = False # since student bert size is different, so not use pretrained bert
+        # right now, student has one layer less than the teacher.
         if pretrained:
-            return cls.from_pretrained(cfg_name, config=cfg, project_dim=projection_dim, **kwargs)
+            model = cls.from_pretrained(cfg_name, config=cfg, project_dim=projection_dim, **kwargs)
         else:
-            return StudentHFBertEncoder(cfg, project_dim=projection_dim)
+            model = StudentHFBertEncoder(cfg, project_dim=projection_dim)
+        
+        StudentHFBertEncoder.reduce_one_layer(model)
+        return model
 
     def forward(
         self,
