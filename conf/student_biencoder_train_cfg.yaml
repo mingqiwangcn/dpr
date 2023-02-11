@@ -18,6 +18,9 @@ val_av_rank_start_epoch: 30
 seed: 12345
 checkpoint_file_name: dpr_student_biencoder
 
+# Whether the teacher is TA
+teacher_is_ta: False
+ta_layers:
 teacher_model_file:
 score_temperature: 3
 distill_loss_weight: 0.65

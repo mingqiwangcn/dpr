@@ -81,7 +81,10 @@ class StudentBiEncoderTrainer(object):
         assert cfg.teacher_model_file, "param {teacher_model_file} must be specified"  
         teacher_state = load_states_from_checkpoint(cfg.teacher_model_file) 
 
-        _, teacher_model, _ = init_biencoder_components(cfg.encoder.teacher_encoder_model_type, cfg)
+        teacher_model_type = cfg.encoder.teacher_encoder_model_type
+        if cfg.teacher_is_ta:
+            teacher_model_type = cfg.encoder.student_encoder_model_type
+        _, teacher_model, _ = init_biencoder_components(teacher_model_type, cfg)
         teacher_model.load_state(teacher_state, strict=False)
           
         # if model file is specified, encoder parameters from saved state should be used for initialization
@@ -90,7 +93,7 @@ class StudentBiEncoderTrainer(object):
         if model_file:
             saved_state = load_states_from_checkpoint(model_file)
             set_cfg_params_from_state(saved_state.encoder_params, cfg)
-        
+      
         teacher = Teacher(teacher_model, cfg)
         tensorizer, student_model, optimizer = init_biencoder_components(cfg.encoder.student_encoder_model_type, cfg, teacher=teacher)
          

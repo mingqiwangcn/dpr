@@ -236,7 +236,12 @@ class StudentBiEncoder(nn.Module):
         # if "question_model.embeddings.position_ids" in saved_state.model_dict:
         #    del saved_state.model_dict["question_model.embeddings.position_ids"]
         #    del saved_state.model_dict["ctx_model.embeddings.position_ids"]
-        self.load_state_dict(saved_state.model_dict, strict=strict)
+        
+        res = self.load_state_dict(saved_state.model_dict, strict=strict)
+        if not strict:
+            if len(res.missing_keys) > 0:
+                keys = ['question_model.embeddings.position_ids', 'ctx_model.embeddings.position_ids']
+                assert (res.missing_keys == keys)        
 
     def get_state_dict(self):
         return self.state_dict()
