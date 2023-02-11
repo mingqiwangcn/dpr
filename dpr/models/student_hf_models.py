@@ -227,7 +227,8 @@ class StudentHFBertEncoder(BertModel):
         if len(model.encoder.layer) < 2:
             return
         updated_layer = nn.ModuleList()
-        remove_layers = [a for a in range(len(model.encoder.layer))]
+        cur_layers = len(model.encoder.layer)
+        remove_layers = [a for a in range(cur_layers-1)]
         for idx, module in enumerate(model.encoder.layer):
             if idx not in remove_layers:
                 updated_layer.append(module)
@@ -272,6 +273,7 @@ class StudentHFBertEncoder(BertModel):
                  
             model.load_state_dict(teacher_encoder.state_dict()) 
             StudentHFBertEncoder.reduce_layers(model)
+            logger.info('Student model layers = %d' % len(model.encoder.layer))
         return model
 
     def forward(
