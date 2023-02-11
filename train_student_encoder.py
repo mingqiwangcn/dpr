@@ -555,7 +555,7 @@ class StudentBiEncoderTrainer(object):
                 )
                 rolling_train_loss = 0.0
 
-            if data_iteration % eval_step == 0:
+            if False: # No step eval right now, data_iteration % eval_step == 0:
                 logger.info(
                     "rank=%d, Validation: Epoch: %d Step: %d/%d",
                     cfg.local_rank,
