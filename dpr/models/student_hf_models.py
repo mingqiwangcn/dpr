@@ -201,7 +201,7 @@ def get_roberta_tokenizer(pretrained_cfg_name: str, do_lower_case: bool = True):
 
 class StudentHFBertEncoder(BertModel):
     def __init__(self, config, project_dim: int = 0):
-        BertModel.__init__(self, config)
+        BertModel.__init__(self, config, add_pooling_layer=False)
         assert config.hidden_size > 0, "Encoder hidden_size can't be zero"
         self.encode_proj = nn.Linear(config.hidden_size, project_dim) if project_dim != 0 else None
         self.init_weights()
@@ -213,13 +213,13 @@ class StudentHFBertEncoder(BertModel):
         cfg.num_hidden_layers = 3 
 
     @staticmethod
-    def reduce_one_layer(model):
+    def reduce_layers(model):
         if len(model.encoder.layer) < 2:
             return
         updated_layer = nn.ModuleList()
-        mid_index =  len(model.encoder.layer) // 2
+        remove_layers = [3, 4, 5, 6, 7, 8]
         for idx, module in enumerate(model.encoder.layer):
-            if idx != mid_index:
+            if idx not in remove_layers:
                 updated_layer.append(module)
         model.encoder.layer = updated_layer
          
@@ -243,7 +243,7 @@ class StudentHFBertEncoder(BertModel):
         
         model = StudentHFBertEncoder(cfg, project_dim=projection_dim)
         model.load_state_dict(teacher_encoder.state_dict()) 
-        StudentHFBertEncoder.reduce_one_layer(model)
+        StudentHFBertEncoder.reduce_layers(model)
         return model
 
     def forward(

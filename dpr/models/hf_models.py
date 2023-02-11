@@ -198,7 +198,7 @@ def get_roberta_tokenizer(pretrained_cfg_name: str, do_lower_case: bool = True):
 
 class HFBertEncoder(BertModel):
     def __init__(self, config, project_dim: int = 0):
-        BertModel.__init__(self, config)
+        BertModel.__init__(self, config, add_pooling_layer=False)
         assert config.hidden_size > 0, "Encoder hidden_size can't be zero"
         self.encode_proj = nn.Linear(config.hidden_size, project_dim) if project_dim != 0 else None
         self.init_weights()
