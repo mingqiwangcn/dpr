@@ -37,12 +37,14 @@ logger = logging.getLogger(__name__)
 
 
 def get_student_bert_biencoder_components(cfg, inference_only: bool = False, **kwargs):
+    teacher = kwargs['teacher']
     dropout = cfg.encoder.dropout if hasattr(cfg.encoder, "dropout") else 0.0
     question_encoder = StudentHFBertEncoder.init_encoder(
         cfg.encoder.pretrained_model_cfg,
         projection_dim=cfg.encoder.projection_dim,
         dropout=dropout,
         pretrained=cfg.encoder.pretrained,
+        teacher_encoder=teacher.model.question_model,
         **kwargs
     )
     ctx_encoder = StudentHFBertEncoder.init_encoder(
@@ -50,11 +52,12 @@ def get_student_bert_biencoder_components(cfg, inference_only: bool = False, **k
         projection_dim=cfg.encoder.projection_dim,
         dropout=dropout,
         pretrained=cfg.encoder.pretrained,
+        teacher_encoder=teacher.model.ctx_model,
         **kwargs
     )
 
     fix_ctx_encoder = cfg.encoder.fix_ctx_encoder if hasattr(cfg.encoder, "fix_ctx_encoder") else False
-    biencoder = StudentBiEncoder(question_encoder, ctx_encoder, fix_ctx_encoder=fix_ctx_encoder)
+    biencoder = StudentBiEncoder(question_encoder, ctx_encoder, fix_ctx_encoder=fix_ctx_encoder, teacher=teacher)
 
     optimizer = (
         get_optimizer(
@@ -223,7 +226,7 @@ class StudentHFBertEncoder(BertModel):
 
     @classmethod
     def init_encoder(
-        cls, cfg_name: str, projection_dim: int = 0, dropout: float = 0.1, pretrained: bool = True, **kwargs
+        cls, cfg_name: str, projection_dim: int = 0, dropout: float = 0.1, pretrained: bool = True, teacher_encoder=None , **kwargs
     ) -> BertModel:
         logger.info("Initializing HF BERT Encoder. cfg_name=%s", cfg_name)
         cfg = BertConfig.from_pretrained(cfg_name if cfg_name else "bert-base-uncased")
@@ -233,11 +236,13 @@ class StudentHFBertEncoder(BertModel):
             cfg.hidden_dropout_prob = dropout
 
         # right now, student has one layer less than the teacher.
-        if pretrained:
-            model = cls.from_pretrained(cfg_name, config=cfg, project_dim=projection_dim, **kwargs)
-        else:
-            model = StudentHFBertEncoder(cfg, project_dim=projection_dim)
+        #if pretrained:
+        #    model = cls.from_pretrained(cfg_name, config=cfg, project_dim=projection_dim, **kwargs)
+        #else:
+        #    model = StudentHFBertEncoder(cfg, project_dim=projection_dim)
         
+        model = StudentHFBertEncoder(cfg, project_dim=projection_dim)
+        model.load_state_dict(teacher_encoder.state_dict()) 
         StudentHFBertEncoder.reduce_one_layer(model)
         return model
 

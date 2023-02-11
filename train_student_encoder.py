@@ -91,11 +91,9 @@ class StudentBiEncoderTrainer(object):
             saved_state = load_states_from_checkpoint(model_file)
             set_cfg_params_from_state(saved_state.encoder_params, cfg)
         
-        tensorizer, student_model, optimizer = init_biencoder_components(cfg.encoder.student_encoder_model_type, cfg)
-        
         teacher = Teacher(teacher_model, cfg)
-        student_model.set_teacher(teacher)
-        
+        tensorizer, student_model, optimizer = init_biencoder_components(cfg.encoder.student_encoder_model_type, cfg, teacher=teacher)
+         
         student_model, optimizer = setup_for_distributed_mode(
             student_model,
             optimizer,
