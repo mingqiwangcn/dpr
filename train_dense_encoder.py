@@ -589,7 +589,7 @@ class BiEncoderTrainer(object):
         model_to_load = get_model_obj(self.biencoder)
         logger.info("Loading saved model state ...")
 
-        model_to_load.load_state(saved_state, strict=True)
+        model_to_load.load_state(saved_state, strict=False)
         logger.info("Saved state loaded")
         if not self.cfg.ignore_checkpoint_optimizer:
             if saved_state.optimizer_dict:
