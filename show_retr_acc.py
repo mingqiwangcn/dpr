@@ -27,7 +27,7 @@ def main():
     ta_rank_file = './outputs/2023-02-11/23-10-59/rank.jsonl'
     show_acc('TA', ta_rank_file, top_k_lst)
      
-    student_rank_file = './outputs/2023-02-11/23-11-09/rank.jsonl'
+    student_rank_file = './outputs/2023-02-12/11-00-30/rank.jsonl'
     show_acc('Student', student_rank_file, top_k_lst)
 
 if __name__ == '__main__':
