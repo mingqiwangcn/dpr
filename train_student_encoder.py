@@ -229,10 +229,12 @@ class StudentBiEncoderTrainer(object):
         if not cfg.dev_datasets:
             validation_loss = 0
         else:
-            if epoch >= cfg.val_av_rank_start_epoch:
-                validation_loss = self.validate_average_rank()
-            else:
-                validation_loss = self.validate_nll()
+            #if epoch >= cfg.val_av_rank_start_epoch:
+            #    validation_loss = self.validate_average_rank()
+            #else:
+            #    validation_loss = self.validate_nll()
+            
+            validation_loss = self.validate_nll() # rank will be done separately
 
         if save_cp:
             cp_name = self._save_checkpoint(scheduler, epoch, iteration)
@@ -834,7 +836,7 @@ def main(cfg: DictConfig):
         )
     assert (cfg.distill_loss_weight > 0 and cfg.distill_loss_weight < 1)
     assert (cfg.n_gpu is None) or (cfg.n_gpu == 1)
-     
+    
     if cfg.output_dir is not None:
         os.makedirs(cfg.output_dir, exist_ok=True)
 
@@ -851,8 +853,12 @@ def main(cfg: DictConfig):
         trainer.run_train()
     elif cfg.model_file and cfg.dev_datasets:
         logger.info("No train files are specified. Run 2 types of validation for specified model file")
-        #trainer.validate_nll()
-        trainer.validate_average_rank()
+        if cfg.eval_type == 'nll':
+            trainer.validate_nll()
+        else if cfg.eval_type == 'rank':
+            trainer.validate_average_rank():
+        else:
+            logger.warning('cfg.eval_type is not supported. Nothing to do')
     else:
         logger.warning("Neither train_file or (model_file & dev_file) parameters are specified. Nothing to do.")
 
