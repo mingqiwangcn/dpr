@@ -23,7 +23,7 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 from torch import Tensor as T
 from torch import nn
-
+import json
 from dpr.models import init_biencoder_components
 from dpr.models.biencoder import BiEncoderNllLoss, BiEncoderBatch
 from dpr.options import (
@@ -341,6 +341,9 @@ class BiEncoderTrainer(object):
                 num_other_negatives,
                 shuffle=False,
             )
+
+            biencoder_input = BiEncoderBatch(**move_to_device(biencoder_input._asdict(), cfg.device))
+
             total_ctxs = len(ctx_represenations)
             ctxs_ids = biencoder_input.context_ids
             ctxs_segments = biencoder_input.ctx_segments
@@ -408,12 +411,23 @@ class BiEncoderTrainer(object):
         scores = sim_score_f(q_represenations, ctx_represenations)
         values, indices = torch.sort(scores, dim=1, descending=True)
 
+        log_dir = os.path.dirname(logger.handlers[1].baseFilename)
+        rank_file = os.path.join(log_dir, 'rank.jsonl')
+        f_o_rank = open(rank_file, 'w')
+        
         rank = 0
         for i, idx in enumerate(positive_idx_per_question):
             # aggregate the rank of the known gold passage in the sorted results for each question
             gold_idx = (indices[i] == idx).nonzero()
+            out_rank_info = {
+                'index':i,
+                'rank':gold_idx.item()
+            }
+            f_o_rank.write(json.dumps(out_rank_info) + '\n')
             rank += gold_idx.item()
-
+        
+        f_o_rank.close()
+        
         if distributed_factor > 1:
             # each node calcuated its own rank, exchange the information between node and calculate the "global" average rank
             # NOTE: the set of passages is still unique for every node
@@ -769,7 +783,7 @@ def main(cfg: DictConfig):
         trainer.run_train()
     elif cfg.model_file and cfg.dev_datasets:
         logger.info("No train files are specified. Run 2 types of validation for specified model file")
-        trainer.validate_nll()
+        #trainer.validate_nll()
         trainer.validate_average_rank()
     else:
         logger.warning("Neither train_file or (model_file & dev_file) parameters are specified. Nothing to do.")

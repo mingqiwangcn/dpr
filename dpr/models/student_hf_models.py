@@ -37,8 +37,8 @@ logger = logging.getLogger(__name__)
 
 
 def get_student_bert_biencoder_components(cfg, inference_only: bool = False, **kwargs):
-    if 'teacher' in kwargs:
-        teacher = kwargs['teacher']
+    teacher = kwargs.get('teacher', None)
+    if teacher is not None:
         question_teacher_encoder = teacher.model.question_model
         ctx_teacher_encoder = teacher.model.ctx_model
     else:
@@ -54,6 +54,7 @@ def get_student_bert_biencoder_components(cfg, inference_only: bool = False, **k
         pretrained=cfg.encoder.pretrained,
         teacher_encoder=question_teacher_encoder,
         ta_layers=cfg.ta_layers,
+        student_layers=cfg.student_layers,
         **kwargs
     )
     ctx_encoder = StudentHFBertEncoder.init_encoder(
@@ -63,6 +64,7 @@ def get_student_bert_biencoder_components(cfg, inference_only: bool = False, **k
         pretrained=cfg.encoder.pretrained,
         teacher_encoder=ctx_teacher_encoder,
         ta_layers=cfg.ta_layers,
+        student_layers=cfg.student_layers,
         **kwargs
     )
 
@@ -245,7 +247,7 @@ class StudentHFBertEncoder(BertModel):
     @classmethod
     def init_encoder(
         cls, cfg_name: str, projection_dim: int = 0, dropout: float = 0.1, pretrained: bool = True, 
-        teacher_encoder=None, ta_layers=None,  **kwargs
+        teacher_encoder=None, ta_layers=None, student_layers=None,  **kwargs
     ) -> BertModel:
         logger.info("Initializing HF BERT Encoder. cfg_name=%s", cfg_name)
         cfg = BertConfig.from_pretrained(cfg_name if cfg_name else "bert-base-uncased")
