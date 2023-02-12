@@ -7,6 +7,8 @@ defaults:
 
 train_datasets:
 dev_datasets:
+# Eval type can be nll or rank
+eval_type: nll
 output_dir:
 train_sampling_rates:
 loss_scale_factors:
