@@ -785,8 +785,8 @@ def main(cfg: DictConfig):
         logger.info("No train files are specified. Run 2 types of validation for specified model file")
         if cfg.eval_type == 'nll':
             trainer.validate_nll()
-        else if cfg.eval_type == 'rank':
-            trainer.validate_average_rank():
+        elif cfg.eval_type == 'rank':
+            trainer.validate_average_rank()
         else:
             logger.warning('cfg.eval_type is not supported. Nothing to do')
     else:
