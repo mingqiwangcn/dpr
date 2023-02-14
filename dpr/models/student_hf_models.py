@@ -53,18 +53,16 @@ def get_student_bert_biencoder_components(cfg, inference_only: bool = False, **k
         dropout=dropout,
         pretrained=cfg.encoder.pretrained,
         teacher_encoder=question_teacher_encoder,
-        ta_layers=cfg.ta_layers,
-        student_layers=cfg.student_layers,
         **kwargs
     )
+    student_layers = [a for a in cfg.student_layers] 
     ctx_encoder = StudentHFBertEncoder.init_encoder(
         cfg.encoder.pretrained_model_cfg,
         projection_dim=cfg.encoder.projection_dim,
         dropout=dropout,
         pretrained=cfg.encoder.pretrained,
         teacher_encoder=ctx_teacher_encoder,
-        ta_layers=cfg.ta_layers,
-        student_layers=cfg.student_layers,
+        student_layers=student_layers,
         **kwargs
     )
 
@@ -219,20 +217,11 @@ class StudentHFBertEncoder(BertModel):
         self.init_weights()
     
     @staticmethod
-    def set_small_size(cfg):
-        cfg.hidden_size = 312
-        cfg.intermediate_size = 1024
-        cfg.num_hidden_layers = 3 
-
-    @staticmethod
-    def reduce_layers(model):
-        if len(model.encoder.layer) < 2:
-            return
+    def prune_layers(model, student_layers):
+        assert (student_layers is not None) and (len(student_layers) > 0)
         updated_layer = nn.ModuleList()
-        cur_layers = len(model.encoder.layer)
-        remove_layers = [a for a in range(cur_layers-1)]
         for idx, module in enumerate(model.encoder.layer):
-            if idx not in remove_layers:
+            if idx in student_layers:
                 updated_layer.append(module)
         model.encoder.layer = updated_layer
     
@@ -247,7 +236,7 @@ class StudentHFBertEncoder(BertModel):
     @classmethod
     def init_encoder(
         cls, cfg_name: str, projection_dim: int = 0, dropout: float = 0.1, pretrained: bool = True, 
-        teacher_encoder=None, ta_layers=None, student_layers=None,  **kwargs
+        teacher_encoder=None, student_layers=None,  **kwargs
     ) -> BertModel:
         logger.info("Initializing HF BERT Encoder. cfg_name=%s", cfg_name)
         cfg = BertConfig.from_pretrained(cfg_name if cfg_name else "bert-base-uncased")
@@ -264,18 +253,24 @@ class StudentHFBertEncoder(BertModel):
         
         model = StudentHFBertEncoder(cfg, project_dim=projection_dim)
         if teacher_encoder is None:
-            # This is a TA
-            StudentHFBertEncoder.set_layers(model, ta_layers)
+            # This is when the model is in evaluation mode.
+            if student_layers is not None: 
+                StudentHFBertEncoder.set_layers(model, len(student_layers))
         else:
-            # Need to update model layers as the same as the teacher(or TA)
+            # Need to update model layers as the same as the teacher to copy weights
             num_teacher_layer = len(teacher_encoder.encoder.layer)
             num_bert_layer = len(model.encoder.layer)
             if num_bert_layer > num_teacher_layer:
                 StudentHFBertEncoder.set_layers(model, num_teacher_layer)
-                 
+            # Always copy teacher model weights and then prune 
             model.load_state_dict(teacher_encoder.state_dict()) 
-            StudentHFBertEncoder.reduce_layers(model)
-            logger.info('Student model layers = %d' % len(model.encoder.layer))
+            if student_layers is not None:
+                StudentHFBertEncoder.prune_layers(model, student_layers)
+       
+        if student_layers is None: 
+            logger.info('Student question encoder layers = %d' % len(model.encoder.layer))
+        else:
+            logger.info('Student passage encoder layers = %d, %s' % (len(model.encoder.layer), str(student_layers)))
         return model
 
     def forward(

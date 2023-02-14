@@ -22,9 +22,12 @@ checkpoint_file_name: dpr_student_biencoder
 
 # Whether the teacher is TA
 teacher_is_ta: False
-ta_layers:
-student_layers:
 teacher_model_file:
+
+# A list of layer numbers of the student passage encoder by the teacher layer index. It is used to copy and prune  
+# while layers of the student question encoder are not changed
+student_layers:
+
 score_temperature: 6
 distill_loss_weight: 0.65
 
