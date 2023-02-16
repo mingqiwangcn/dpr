@@ -145,6 +145,8 @@ def get_model_obj(model: nn.Module):
 def get_model_file(args, file_prefix) -> str:
     if args.model_file and os.path.exists(args.model_file):
         return args.model_file
+    else:
+        return None
 
     out_cp_files = glob.glob(os.path.join(args.output_dir, file_prefix + "*")) if args.output_dir else []
     logger.info("Checkpoint files %s", out_cp_files)

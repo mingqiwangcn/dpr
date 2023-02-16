@@ -88,17 +88,20 @@ class StudentBiEncoderTrainer(object):
             teacher_model.load_state(teacher_state, strict=False)
           
         # if model file is specified, encoder parameters from saved state should be used for initialization
-        model_file = get_model_file(cfg, cfg.checkpoint_file_name)
+        model_file = get_model_file(cfg, None) # No need to provide file prefix name
         saved_state = None
+        student_num_layers = None
         if model_file:
             saved_state = load_states_from_checkpoint(model_file)
+            student_num_layers = self.__get_model_layers(saved_state.model_dict)
             set_cfg_params_from_state(saved_state.encoder_params, cfg)
      
         teacher = None
         if teacher_model is not None: 
             teacher = Teacher(teacher_model, cfg)
         tensorizer, student_model, optimizer = init_biencoder_components(cfg.encoder.student_encoder_model_type, 
-                                                                         cfg, teacher=teacher)
+                                                                         cfg, teacher=teacher,
+                                                                         student_num_layers=student_num_layers)
          
         student_model, optimizer = setup_for_distributed_mode(
             student_model,
@@ -126,6 +129,21 @@ class StudentBiEncoderTrainer(object):
 
         self.dev_iterator = None
 
+
+    def __get_model_layers(self, model_dict):
+        tag = 'ctx_model.encoder.layer.'
+        layer_set = set()
+        for key in model_dict:
+            if key.startswith(tag):
+                offset = key.index(tag)
+                pos_1 = offset + len(tag)
+                pos_2 = key.index('.', pos_1)
+                layer = int(key[pos_1:pos_2])
+                layer_set.add(layer) 
+        max_layer = max(list(layer_set))
+        num_layers = max_layer + 1
+        return num_layers
+         
     def get_data_iterator(
         self,
         batch_size: int,
@@ -847,8 +865,7 @@ def main(cfg: DictConfig):
     if cfg.local_rank in [-1, 0]:
         logger.info("CFG (after gpu  configuration):")
         logger.info("%s", OmegaConf.to_yaml(cfg))
-    
-    assert (cfg.student_layers is not None)
+
     trainer = StudentBiEncoderTrainer(cfg)
 
     if cfg.train_datasets and len(cfg.train_datasets) > 0:
