@@ -82,9 +82,14 @@ class StudentBiEncoderTrainer(object):
             # load teacher pretrained model
             teacher_state = load_states_from_checkpoint(cfg.teacher_model_file) 
             teacher_model_type = cfg.encoder.teacher_encoder_model_type
+           
+            ta_num_layers = None
             if cfg.teacher_is_ta:
                 teacher_model_type = cfg.encoder.student_encoder_model_type
-            _, teacher_model, _ = init_biencoder_components(teacher_model_type, cfg)
+                ta_num_layers = self.__get_model_layers(teacher_state.model_dict)
+            _, teacher_model, _ = init_biencoder_components(teacher_model_type, cfg, 
+                                                            student_num_layers=ta_num_layers,
+                                                            tag='TA')
             teacher_model.load_state(teacher_state, strict=False)
           
         # if model file is specified, encoder parameters from saved state should be used for initialization
@@ -101,7 +106,8 @@ class StudentBiEncoderTrainer(object):
             teacher = Teacher(teacher_model, cfg)
         tensorizer, student_model, optimizer = init_biencoder_components(cfg.encoder.student_encoder_model_type, 
                                                                          cfg, teacher=teacher,
-                                                                         student_num_layers=student_num_layers)
+                                                                         student_num_layers=student_num_layers,
+                                                                         tag='Student')
          
         student_model, optimizer = setup_for_distributed_mode(
             student_model,

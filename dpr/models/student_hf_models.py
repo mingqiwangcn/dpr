@@ -271,9 +271,13 @@ class StudentHFBertEncoder(BertModel):
                 StudentHFBertEncoder.prune_layers(model, student_layers)
        
         if student_layers is None: 
-            logger.info('Student question encoder layers = %d' % len(model.encoder.layer))
+            logger.info('%s question encoder layers = %d' % (kwargs['tag'], len(model.encoder.layer)) )
         else:
-            logger.info('Student passage encoder layers = %d, %s' % (len(model.encoder.layer), str(student_layers)))
+            if kwargs['tag'] == 'TA':
+                logger.info('%s passage encoder layers = %d' % (kwargs['tag'], len(model.encoder.layer))) 
+            else:
+                logger.info('%s passage encoder layers = %d, %s' % (kwargs['tag'], len(model.encoder.layer), 
+                        str(student_layers)))
         return model
 
     def forward(
