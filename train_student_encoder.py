@@ -252,14 +252,14 @@ class StudentBiEncoderTrainer(object):
             #else:
             #    validation_loss = self.validate_nll()
             
-            _, correct_ratio = self.validate_nll(epoch) # rank will be done separately
+            validation_loss, correct_ratio = self.validate_nll(epoch) # rank will be done separately
 
         if save_cp:
             cp_name = self._save_checkpoint(scheduler, epoch, iteration)
             logger.info("Saved checkpoint to %s", cp_name)
 
-            if (self.best_validation_result is None) or (correct_ratio < self.best_validation_result):
-                self.best_validation_result = correct_ratio
+            if (self.best_validation_result is None) or (validation_loss < self.best_validation_result):
+                self.best_validation_result = validation_loss
                 self.best_cp_name = cp_name
                 logger.info("New Best validation checkpoint %s", cp_name)
 
