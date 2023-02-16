@@ -206,21 +206,22 @@ class BiEncoderTrainer(object):
         if not cfg.dev_datasets:
             validation_loss = 0
         else:
-            if epoch >= cfg.val_av_rank_start_epoch:
-                validation_loss = self.validate_average_rank()
-            else:
-                validation_loss = self.validate_nll()
+            #if epoch >= cfg.val_av_rank_start_epoch:
+            #    validation_loss = self.validate_average_rank()
+            #else:
+            #    validation_loss = self.validate_nll(epoch)
+            _, correct_ratio = self.validate_nll(epoch) # rank will be done separately
 
         if save_cp:
             cp_name = self._save_checkpoint(scheduler, epoch, iteration)
             logger.info("Saved checkpoint to %s", cp_name)
 
-            if validation_loss < (self.best_validation_result or validation_loss + 1):
-                self.best_validation_result = validation_loss
+            if (self.best_validation_result is None) or (correct_ratio < self.best_validation_result):
+                self.best_validation_result = correct_ratio
                 self.best_cp_name = cp_name
                 logger.info("New Best validation checkpoint %s", cp_name)
 
-    def validate_nll(self) -> float:
+    def validate_nll(self, epoch=None) -> float:
         logger.info("NLL validation ...")
         cfg = self.cfg
         self.biencoder.eval()
@@ -283,13 +284,14 @@ class BiEncoderTrainer(object):
         total_samples = batches * cfg.train.dev_batch_size * self.distributed_factor
         correct_ratio = float(total_correct_predictions / total_samples)
         logger.info(
-            "NLL Validation: loss = %f. correct prediction ratio  %d/%d ~  %f",
+            "Epoch %s NLL Validation: loss = %f. correct prediction ratio  %d/%d ~  %f",
+            str(epoch),
             total_loss,
             total_correct_predictions,
             total_samples,
             correct_ratio,
         )
-        return total_loss
+        return total_loss, correct_ratio
 
     def validate_average_rank(self) -> float:
         """
