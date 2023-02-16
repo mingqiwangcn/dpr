@@ -6,7 +6,7 @@ tag=$1
 teacher_model=$2
 layers=$3
 python train_student_encoder.py \
-teacher_is_ta=false \
+teacher_is_ta=true \
 teacher_model_file=${teacher_model} \
 student_layers=${layers} \
 train=biencoder_nq \
