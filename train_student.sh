@@ -1,12 +1,13 @@
-if [ "$#" -ne 3 ]; then
-    echo "Usage: ./train_student.sh <tag> <teacher_model_file> <student layers>"
+if [ "$#" -ne 4 ]; then
+    echo "Usage: ./train_student.sh <tag> <teacher_is_ta> <teacher_model_file> <student layers>"
     exit
 fi
 tag=$1
-teacher_model=$2
-layers=$3
+is_ta=$2
+teacher_model=$3
+layers=$4
 python train_student_encoder.py \
-teacher_is_ta=true \
+teacher_is_ta=${is_ta} \
 teacher_model_file=${teacher_model} \
 student_layers=${layers} \
 train=biencoder_nq \
