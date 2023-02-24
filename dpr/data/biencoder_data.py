@@ -26,11 +26,14 @@ def get_dpr_files(source_name) -> List[str]:
 
 
 class BiEncoderSample(object):
+    index: int
     query: str
     positive_passages: List[BiEncoderPassage]
     negative_passages: List[BiEncoderPassage]
     hard_negative_passages: List[BiEncoderPassage]
-
+    
+    def __init__(self, index):
+        self.index = index
 
 class JsonQADataset(Dataset):
     def __init__(
@@ -80,7 +83,7 @@ class JsonQADataset(Dataset):
 
     def __getitem__(self, index) -> BiEncoderSample:
         json_sample = self.data[index]
-        r = BiEncoderSample()
+        r = BiEncoderSample(index)
         r.query = self._process_query(json_sample["question"])
 
         positive_ctxs = json_sample["positive_ctxs"]
@@ -434,7 +437,7 @@ class JsonLTablesQADataset(Dataset):
 
     def __getitem__(self, index) -> BiEncoderSample:
         json_sample = self.data[index]
-        r = BiEncoderSample()
+        r = BiEncoderSample(index)
         r.query = json_sample["question"]
         positive_ctxs = json_sample["positive_ctxs"]
         hard_negative_ctxs = json_sample["hard_negative_ctxs"]

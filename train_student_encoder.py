@@ -17,6 +17,8 @@ import random
 import sys
 import time
 from typing import Tuple
+import pickle
+from tqdm import tqdm
 
 import hydra
 import torch
@@ -61,7 +63,7 @@ class Teacher:
         self.model = model
         self.model.to(cfg.device)
         self.model.eval()
-        
+        self.emb_dict = {} 
 
 class StudentBiEncoderTrainer(object):
     """
@@ -149,7 +151,101 @@ class StudentBiEncoderTrainer(object):
         max_layer = max(list(layer_set))
         num_layers = max_layer + 1
         return num_layers
-         
+    
+    def get_teacher_emb_dir(self):
+        emb_dir = os.path.join('teacher_precompute')
+        return emb_dir
+    
+    def get_teacher_emb_file(self):
+        file_name = '%s_%s.emb' % (self.cfg.teacher_name, self.cfg.train_datasets[0]) 
+        return file_name
+
+    def read_teacher_embeddings(self):
+        emb_dir = self.get_teacher_emb_dir()
+        file_name = self.get_teacher_emb_file()
+        emb_file = os.path.join(emb_dir, file_name)
+        if not os.path.isfile(emb_file):
+            return None
+        with open(emb_file, 'rb') as f:
+            emb_dict = pickle.load(f)   
+        return emb_dict
+
+    def precompute_teacher_embeddings(self):
+        assert len(self.cfg.train_datasets) == 1, 'Two or more train datasets not allowed because of precomputing'
+        assert (self.cfg.teacher_name is not None) and (self.cfg.teacher_name.strip() != '')
+        
+        emb_dict = self.read_teacher_embeddings()
+        if emb_dict is not None:
+            self.biencoder.teacher.emb_dict = emb_dict
+            return
+                 
+        cfg = self.cfg
+        batch_size = 1 # use batch size 1 so that each train sample can be iterated.
+        train_iterator = self.get_data_iterator(
+            batch_size,
+            True,
+            shuffle=False,
+            shuffle_seed=cfg.seed,
+            offset=self.start_batch,
+            rank=cfg.local_rank,
+        )
+        max_iterations = train_iterator.get_max_iterations()
+        teacher_model = self.biencoder.teacher.model
+        for batch_data in tqdm(train_iterator.iterate_ds_data(), total=max_iterations, desc='Teacher Precomputing'):
+            samples_batch, dataset = batch_data
+            assert len(samples_batch) == 1
+            
+            ds_cfg = self.ds_cfg.train_datasets[dataset]
+            special_token = ds_cfg.special_token
+            encoder_type = ds_cfg.encoder_type
+            
+            sample = samples_batch[0]
+            num_hard_negatives = len(sample.hard_negative_passages)
+            num_other_negatives = len(sample.negative_passages)
+            biencoder_batch = self.biencoder.create_biencoder_input(
+                samples_batch,
+                self.tensorizer,
+                True,
+                num_hard_negatives,
+                num_other_negatives,
+                shuffle=False,
+                shuffle_positives=False,
+                query_token=special_token,
+            ) 
+            selector = ds_cfg.selector if ds_cfg else DEFAULT_SELECTOR 
+            rep_positions = selector.get_positions(biencoder_batch.question_ids, self.tensorizer)
+           
+            biencoder_batch = BiEncoderBatch(**move_to_device(biencoder_batch._asdict(), cfg.device))
+             
+            q_attn_mask = self.tensorizer.get_attn_mask(biencoder_batch.question_ids)
+            ctx_attn_mask = self.tensorizer.get_attn_mask(biencoder_batch.context_ids)
+            
+            with torch.no_grad():
+                model_out = self.biencoder.teacher.model(
+                    biencoder_batch.question_ids,
+                    biencoder_batch.question_segments,
+                    q_attn_mask,
+                    biencoder_batch.context_ids,
+                    biencoder_batch.ctx_segments,
+                    ctx_attn_mask,
+                    encoder_type=encoder_type,
+                    representation_token_pos=rep_positions,
+                )
+            
+            local_q_vector, local_ctx_vectors = model_out
+            local_q_vector = local_q_vector.cpu()
+            local_ctx_vectors = local_ctx_vectors.cpu()
+            
+            self.biencoder.teacher.emb_dict[sample.index] = (local_q_vector, local_ctx_vectors) 
+        
+        emb_dir = sel.get_teacher_emb_dir()
+        if not os.path.isdir(emb_dir):
+            os.path.makedirs(emb_dir)
+        file_name = self.get_teacher_emb_file()
+        emb_file = os.path.join(emb_dir, file_name)
+        with open(emb_file, 'wb') as f_o:
+            pickle.dump(self.biencoder.teacher.emb_dict, f_o)
+             
     def get_data_iterator(
         self,
         batch_size: int,
@@ -192,6 +288,8 @@ class StudentBiEncoderTrainer(object):
         )
 
     def run_train(self):
+        self.precompute_teacher_embeddings()
+
         cfg = self.cfg
 
         train_iterator = self.get_data_iterator(
