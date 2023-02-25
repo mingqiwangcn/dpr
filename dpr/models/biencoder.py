@@ -36,6 +36,7 @@ BiEncoderBatch = collections.namedtuple(
         "is_positive",
         "hard_negatives",
         "encoder_type",
+        "sample_ctx_info",
     ],
 )
 # TODO: it is only used by _select_span_with_token. Move them to utils
@@ -121,6 +122,7 @@ class BiEncoder(nn.Module):
         encoder_type: str = None,
         representation_token_pos=0,
     ) -> Tuple[T, T]:
+        assert encoder_type is None
         q_encoder = self.question_model if encoder_type is None or encoder_type == "question" else self.ctx_model
         _q_seq, q_pooled_out, _q_hidden = self.get_representation(
             q_encoder,

@@ -152,16 +152,12 @@ class StudentBiEncoderTrainer(object):
         num_layers = max_layer + 1
         return num_layers
     
-    def get_teacher_emb_dir(self):
-        emb_dir = os.path.join('teacher_precompute')
-        return emb_dir
-    
     def get_teacher_emb_file(self):
         file_name = '%s_%s.emb' % (self.cfg.teacher_name, self.cfg.train_datasets[0]) 
         return file_name
 
     def read_teacher_embeddings(self):
-        emb_dir = self.get_teacher_emb_dir()
+        emb_dir = self.cfg.teacher_precompute_dir
         file_name = self.get_teacher_emb_file()
         emb_file = os.path.join(emb_dir, file_name)
         if not os.path.isfile(emb_file):
@@ -211,6 +207,7 @@ class StudentBiEncoderTrainer(object):
                 shuffle=False,
                 shuffle_positives=False,
                 query_token=special_token,
+                precompute_mode=True,
             ) 
             selector = ds_cfg.selector if ds_cfg else DEFAULT_SELECTOR 
             rep_positions = selector.get_positions(biencoder_batch.question_ids, self.tensorizer)
@@ -236,11 +233,16 @@ class StudentBiEncoderTrainer(object):
             local_q_vector = local_q_vector.cpu()
             local_ctx_vectors = local_ctx_vectors.cpu()
             
-            self.biencoder.teacher.emb_dict[sample.index] = (local_q_vector, local_ctx_vectors) 
-        
-        emb_dir = sel.get_teacher_emb_dir()
+            emb_info = {
+                'q_emb':local_q_vector,
+                'ctx_emb':local_ctx_vectors,
+                'ctx_info':biencoder_batch.sample_ctx_info[0],
+            }
+            self.biencoder.teacher.emb_dict[sample.index] = emb_info 
+       
+        emb_dir = self.cfg.teacher_precompute_dir
         if not os.path.isdir(emb_dir):
-            os.path.makedirs(emb_dir)
+            os.makedirs(emb_dir)
         file_name = self.get_teacher_emb_file()
         emb_file = os.path.join(emb_dir, file_name)
         with open(emb_file, 'wb') as f_o:
@@ -289,9 +291,7 @@ class StudentBiEncoderTrainer(object):
 
     def run_train(self):
         self.precompute_teacher_embeddings()
-
         cfg = self.cfg
-
         train_iterator = self.get_data_iterator(
             cfg.train.batch_size,
             True,

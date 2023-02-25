@@ -112,6 +112,7 @@ class StudentBiEncoder(nn.Module):
         encoder_type: str = None,
         representation_token_pos=0,
     ) -> Tuple[T, T]:
+        assert encoder_type is None
         q_encoder = self.question_model if encoder_type is None or encoder_type == "question" else self.ctx_model
         _q_seq, q_pooled_out, _q_hidden = self.get_representation(
             q_encoder,
@@ -140,6 +141,7 @@ class StudentBiEncoder(nn.Module):
         shuffle_positives: bool = False,
         hard_neg_fallback: bool = True,
         query_token: str = None,
+        precompute_mode=False,
     ) -> BiEncoderBatch:
         """
         Creates a batch of the biencoder training tuple.
@@ -157,34 +159,71 @@ class StudentBiEncoder(nn.Module):
         positive_ctx_indices = []
         hard_neg_ctx_indices = []
 
+        batch_sample_ctx_info = []
+
         for sample in samples:
             # ctx+ & [ctx-] composition
             # as of now, take the first(gold) ctx+ only
-
-            if shuffle and shuffle_positives:
-                positive_ctxs = sample.positive_passages
-                positive_ctx = positive_ctxs[np.random.choice(len(positive_ctxs))]
-            else:
-                positive_ctx = sample.positive_passages[0]
-
-            neg_ctxs = sample.negative_passages
-            hard_neg_ctxs = sample.hard_negative_passages
             question = sample.query
-            # question = normalize_question(sample.query)
+            if not precompute_mode: 
+                sample_pos_index = 0
+                if shuffle and shuffle_positives:
+                    positive_ctxs = sample.positive_passages
+                    sample_pos_index = np.random.choice(len(positive_ctxs))
+                
+                positive_ctx = sample.positive_passages[sample_pos_index]
 
-            if shuffle:
-                random.shuffle(neg_ctxs)
-                random.shuffle(hard_neg_ctxs)
+                neg_ctxs = sample.negative_passages
+                hard_neg_ctxs = sample.hard_negative_passages
+                # question = normalize_question(sample.query)
+               
+                sample_neg_range = np.arange(len(neg_ctxs))
+                sample_hard_neg_range = np.arange(len(hard_neg_ctxs))
+                hard_neg_src = 'hard_neg'
+                
+                sample_neg_indices = []
+                sample_hard_neg_indices = []
 
-            if hard_neg_fallback and len(hard_neg_ctxs) == 0:
-                hard_neg_ctxs = neg_ctxs[0:num_hard_negatives]
+                if shuffle:
+                    random.shuffle(sample_neg_range)
+                    random.shuffle(sample_hard_neg_range)
 
-            neg_ctxs = neg_ctxs[0:num_other_negatives]
-            hard_neg_ctxs = hard_neg_ctxs[0:num_hard_negatives]
+                sample_neg_indices = sample_neg_range[0:num_other_negatives]
+                neg_ctxs = [neg_ctxs[a] for a in sample_neg_indices]
+              
+                hard_neg_ctxs = [] 
+                if len(hard_neg_ctxs) > 0:
+                    sample_hard_neg_indices = sample_hard_neg_range[0:num_hard_negatives]
+                    hard_neg_ctxs = [hard_neg_ctxs[a] for a in sample_hard_neg_indices]
+                else: 
+                    if hard_neg_fallback: 
+                        hard_neg_src = 'neg'
+                        sample_hard_neg_indices = sample_neg_range[0:num_hard_negatives]
+                        hard_neg_ctxs = [neg_ctxs[a] for a in sample_hard_neg_indices]        
 
-            all_ctxs = [positive_ctx] + neg_ctxs + hard_neg_ctxs
-            hard_negatives_start_idx = 1
-            hard_negatives_end_idx = 1 + len(hard_neg_ctxs)
+                all_ctxs = [positive_ctx] + hard_neg_ctxs + neg_ctxs
+                hard_negatives_start_idx = 1
+                hard_negatives_end_idx = 1 + len(hard_neg_ctxs)
+                sample_ctx_info = {
+                    'pos_index':sample_pos_index,
+                    'hard_neg_src':hard_neg_src,
+                    'hard_neg_indices':sample_hard_neg_indices,
+                    'neg_indicies':sample_neg_indices,
+                }
+                batch_sample_ctx_info.append(sample_ctx_info)
+            else:
+                all_ctxs = sample.positive_passages + sample.hard_negative_passages + sample.negative_passages
+                hard_negatives_start_idx = len(sample.positive_passages)
+                hard_negatives_end_idx = 1 + len(sample.hard_negative_passages)
+                sample_ctx_info = {
+                    'pos_offset':0,
+                    'pos_size':len(sample.positive_passages),
+                    'hard_neg_offset':len(sample.positive_passages),
+                    'hard_neg_size':len(sample.hard_negative_passages),
+                    'neg_offset':len(sample.positive_passages) + len(sample.hard_negative_passages),
+                    'neg_size':len(sample.negative_passages),
+                }
+                batch_sample_ctx_info.append(sample_ctx_info)
 
             current_ctxs_len = len(ctx_tensors)
 
@@ -229,6 +268,7 @@ class StudentBiEncoder(nn.Module):
             positive_ctx_indices,
             hard_neg_ctx_indices,
             "question",
+            batch_sample_ctx_info,
         )
 
     def load_state(self, saved_state: CheckpointState, strict: bool = True):
