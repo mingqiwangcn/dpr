@@ -162,8 +162,9 @@ class StudentBiEncoderTrainer(object):
         emb_file = os.path.join(emb_dir, file_name)
         if not os.path.isfile(emb_file):
             return None
+        logger.info('Reading teacher precomputed embeddings')
         with open(emb_file, 'rb') as f:
-            emb_dict = pickle.load(f)   
+            emb_dict = pickle.load(f) 
         return emb_dict
 
     def precompute_teacher_embeddings(self):
@@ -195,15 +196,12 @@ class StudentBiEncoderTrainer(object):
             special_token = ds_cfg.special_token
             encoder_type = ds_cfg.encoder_type
             
-            sample = samples_batch[0]
-            num_hard_negatives = len(sample.hard_negative_passages)
-            num_other_negatives = len(sample.negative_passages)
             biencoder_batch = self.biencoder.create_biencoder_input(
                 samples_batch,
                 self.tensorizer,
                 True,
-                num_hard_negatives,
-                num_other_negatives,
+                num_hard_negatives=0,
+                num_other_negatives=0,
                 shuffle=False,
                 shuffle_positives=False,
                 query_token=special_token,
@@ -238,7 +236,7 @@ class StudentBiEncoderTrainer(object):
                 'ctx_emb':local_ctx_vectors,
                 'ctx_info':biencoder_batch.sample_ctx_info[0],
             }
-            self.biencoder.teacher.emb_dict[sample.index] = emb_info 
+            self.biencoder.teacher.emb_dict[samples_batch[0].index] = emb_info 
        
         emb_dir = self.cfg.teacher_precompute_dir
         if not os.path.isdir(emb_dir):

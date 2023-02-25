@@ -168,17 +168,14 @@ class StudentBiEncoder(nn.Module):
             if not precompute_mode: 
                 sample_pos_index = 0
                 if shuffle and shuffle_positives:
-                    positive_ctxs = sample.positive_passages
-                    sample_pos_index = np.random.choice(len(positive_ctxs))
+                    sample_pos_index = np.random.choice(len(sample.positive_passages))
                 
                 positive_ctx = sample.positive_passages[sample_pos_index]
 
-                neg_ctxs = sample.negative_passages
-                hard_neg_ctxs = sample.hard_negative_passages
                 # question = normalize_question(sample.query)
                
-                sample_neg_range = np.arange(len(neg_ctxs))
-                sample_hard_neg_range = np.arange(len(hard_neg_ctxs))
+                sample_neg_range = np.arange(len(sample.negative_passages))
+                sample_hard_neg_range = np.arange(len(sample.hard_negative_passages))
                 hard_neg_src = 'hard_neg'
                 
                 sample_neg_indices = []
@@ -189,17 +186,17 @@ class StudentBiEncoder(nn.Module):
                     random.shuffle(sample_hard_neg_range)
 
                 sample_neg_indices = sample_neg_range[0:num_other_negatives]
-                neg_ctxs = [neg_ctxs[a] for a in sample_neg_indices]
+                neg_ctxs = [sample.negative_passages[a] for a in sample_neg_indices]
               
                 hard_neg_ctxs = [] 
                 if len(hard_neg_ctxs) > 0:
                     sample_hard_neg_indices = sample_hard_neg_range[0:num_hard_negatives]
-                    hard_neg_ctxs = [hard_neg_ctxs[a] for a in sample_hard_neg_indices]
+                    hard_neg_ctxs = [sample.hard_negative_passages[a] for a in sample_hard_neg_indices]
                 else: 
                     if hard_neg_fallback: 
                         hard_neg_src = 'neg'
-                        sample_hard_neg_indices = sample_neg_range[0:num_hard_negatives]
-                        hard_neg_ctxs = [neg_ctxs[a] for a in sample_hard_neg_indices]        
+                        neg_indices = sample_neg_range[0:num_hard_negatives]
+                        hard_neg_ctxs = [sample.negative_passages[a] for a in neg_indices]        
 
                 all_ctxs = [positive_ctx] + hard_neg_ctxs + neg_ctxs
                 hard_negatives_start_idx = 1

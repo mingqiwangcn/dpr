@@ -1,7 +1,13 @@
+if [ "$#" -ne 2 ]; then
+    echo "Usage: ./eval_student.sh <eval_mode> <model_file>"
+    exit
+fi
+eval_mode=$1
+model=$2
 python train_student_encoder.py \
 train=biencoder_nq \
-eval_type=rank \
-model_file=/home/cc/code/catalog/dpr/outputs/2023-02-14/16-49-38/student_encoder_test/dpr_student_biencoder.26 \
+eval_type=${eval_mode} \
+model_file=${model} \
 dev_datasets=[nq_dev] \
 output_dir=student_eval \
 ignore_checkpoint_optimizer=True \
