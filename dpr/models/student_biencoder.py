@@ -189,7 +189,7 @@ class StudentBiEncoder(nn.Module):
                 neg_ctxs = [sample.negative_passages[a] for a in sample_neg_indices]
               
                 hard_neg_ctxs = [] 
-                if len(hard_neg_ctxs) > 0:
+                if len(sample.hard_negative_passages) > 0:
                     sample_hard_neg_indices = sample_hard_neg_range[0:num_hard_negatives]
                     hard_neg_ctxs = [sample.hard_negative_passages[a] for a in sample_hard_neg_indices]
                 else: 
