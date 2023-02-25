@@ -13,6 +13,7 @@ python train_student_encoder.py \
 teacher_is_ta=${is_ta} \
 teacher_name=${teacher_name} \
 teacher_model_file=${teacher_model} \
+teacher_precompute_dir=$PWD/teacher_pecompute \
 student_layers=${layers} \
 train=biencoder_nq \
 train_datasets=[nq_train_hn1] \
