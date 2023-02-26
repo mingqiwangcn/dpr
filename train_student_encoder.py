@@ -63,7 +63,7 @@ class Teacher:
         self.model = model
         self.model.to(cfg.device)
         self.model.eval()
-        self.emb_dict = {} 
+        self.emb_dict = None 
 
 class StudentBiEncoderTrainer(object):
     """
@@ -175,7 +175,7 @@ class StudentBiEncoderTrainer(object):
         if emb_dict is not None:
             self.biencoder.teacher.emb_dict = emb_dict
             return
-                 
+        self.biencoder.teacher.emb_dict = {}     
         cfg = self.cfg
         batch_size = 1 # use batch size 1 so that each train sample can be iterated.
         train_iterator = self.get_data_iterator(
@@ -652,6 +652,7 @@ class StudentBiEncoderTrainer(object):
                 encoder_type=encoder_type,
                 rep_positions=rep_positions,
                 loss_scale=loss_scale,
+                samples_batch=samples_batch,
             )
 
             epoch_correct_predictions += correct_cnt
@@ -842,32 +843,80 @@ def _print_norms(model):
     total_norm = total_norm ** (1.0 / 2)
     return total_norm
 
+def get_precompute_embs(emb_dict, samples_batch, batch_sample_ctx_info):
+    q_vector_lst = []
+    ctx_vector_lst = []
+    for sample_offset, sample in enumerate(samples_batch):
+        index = sample.index
+        emb_data = emb_dict[index]
+        q_vector = emb_data['q_emb'].view(1, -1)
+        q_vector_lst.append(q_vector)
+        all_ctx_vector = emb_data['ctx_emb']
+        ctx_info = emb_data['ctx_info']
+        
+        pos_offset = ctx_info['pos_offset']
+        pos_size = ctx_info['pos_size']
+        all_pos_emb = all_ctx_vector[pos_offset:(pos_offset+pos_size)]
+         
+        hard_neg_offset = ctx_info['hard_neg_offset']
+        hard_neg_size = ctx_info['hard_neg_size']
+        all_hard_neg_emb = all_ctx_vector[hard_neg_offset:(hard_neg_offset+hard_neg_size)]
+        
+        neg_offset = ctx_info['neg_offset']
+        neg_size = ctx_info['neg_size']
+        all_neg_emb = all_ctx_vector[neg_offset:(neg_offset+neg_size)]
+
+        sample_ctx_info = batch_sample_ctx_info[sample_offset]
+        
+        teacher_pos_emb = all_pos_emb[sample_ctx_info['pos_index']].view(1, -1)
+        hard_neg_src = sample_ctx_info['hard_neg_src']
+        if hard_neg_src == 'neg':
+            teacher_hard_neg_emb = all_neg_emb[sample_ctx_info['hard_neg_indices']]
+        else:
+            teacher_hard_neg_emb = all_hard_neg_emb[sample_ctx_info['hard_neg_indices']]
+        
+        teacher_neg_emb = all_neg_emb[sample_ctx_info['neg_indicies']]
+        teacher_ctx_emb = torch.cat([teacher_pos_emb, teacher_hard_neg_emb, teacher_neg_emb], dim=0) 
+        
+        ctx_vector_lst.append(teacher_ctx_emb)    
+
+    batch_q_vector = torch.cat(q_vector_lst, dim=0)
+    batch_ctx_vector = torch.cat(ctx_vector_lst, dim=0) 
+    return (batch_q_vector, batch_ctx_vector)
 
 def calc_teacher_fwd_logits(
+    cfg,
     teacher,
+    samples_batch,
     input: BiEncoderBatch,
     q_attn_mask,
     ctx_attn_mask,
     encoder_type,
     rep_positions,
-    score_temperature
 ):
-    with torch.no_grad():
-        model_out = teacher.model(
-            input.question_ids,
-            input.question_segments,
-            q_attn_mask,
-            input.context_ids,
-            input.ctx_segments,
-            ctx_attn_mask,
-            encoder_type=encoder_type,
-            representation_token_pos=rep_positions,
-        )
+    if teacher.emb_dict is not None:
+        precom_out = get_precompute_embs(teacher.emb_dict, samples_batch, input.sample_ctx_info) 
+        local_q_vector, local_ctx_vectors = precom_out
+        local_q_vector = local_q_vector.to(cfg.device)
+        local_ctx_vectors = local_ctx_vectors.to(cfg.device)
+    else: 
+        with torch.no_grad():
+            model_out = teacher.model(
+                input.question_ids,
+                input.question_segments,
+                q_attn_mask,
+                input.context_ids,
+                input.ctx_segments,
+                ctx_attn_mask,
+                encoder_type=encoder_type,
+                representation_token_pos=rep_positions,
+            )
 
-    local_q_vector, local_ctx_vectors = model_out   
+        local_q_vector, local_ctx_vectors = model_out   
+    
     loss_function = StudentBiEncoderNllLoss() # currently in the student class
     # not support distributed mode right now
-    logits = loss_function.calc_logits(local_q_vector, local_ctx_vectors, score_temperature=score_temperature) 
+    logits = loss_function.calc_logits(local_q_vector, local_ctx_vectors, score_temperature=cfg.score_temperature) 
     return logits 
      
 
@@ -879,6 +928,7 @@ def _do_biencoder_fwd_pass(
     encoder_type: str,
     rep_positions=0,
     loss_scale: float = None,
+    samples_batch=None,
 ) -> Tuple[torch.Tensor, int]:
 
     input = BiEncoderBatch(**move_to_device(input._asdict(), cfg.device))
@@ -927,7 +977,9 @@ def _do_biencoder_fwd_pass(
     loss = None
     if model.training:
         teacher_soft_logits = calc_teacher_fwd_logits(
-            model.teacher, input, q_attn_mask, ctx_attn_mask, encoder_type, rep_positions, cfg.score_temperature)
+            cfg,
+            model.teacher, samples_batch, input, q_attn_mask, ctx_attn_mask, 
+            encoder_type, rep_positions)
         
         student_soft_logits = loss_function.calc_logits(local_q_vector, local_ctx_vectors, 
                                                                 score_temperature=cfg.score_temperature) 
