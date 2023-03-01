@@ -459,7 +459,7 @@ class StudentBiEncoderTrainer(object):
             qry_item['query'] = sample.query
             qry_item['pos_ctx_index'] = biencoder_input.is_positive[offset]
             qry_item['scores'] = scores[offset].cpu().numpy().tolist()
-            qry_item['arg_sort'] = sorted_idxes
+            qry_item['arg_sort'] = sorted_idxes[offset]
             
             query_lst.append(qry_item)
             ctxs = biencoder_input.sample_ctx_info[offset]['ctxs']
