@@ -52,6 +52,7 @@ from dpr.utils.model_utils import (
     get_model_file,
     get_model_obj,
     load_states_from_checkpoint,
+    get_ctx_model_layers,
 )
 
 logger = logging.getLogger()
@@ -139,18 +140,7 @@ class StudentBiEncoderTrainer(object):
 
 
     def __get_model_layers(self, model_dict):
-        tag = 'ctx_model.encoder.layer.'
-        layer_set = set()
-        for key in model_dict:
-            if key.startswith(tag):
-                offset = key.index(tag)
-                pos_1 = offset + len(tag)
-                pos_2 = key.index('.', pos_1)
-                layer = int(key[pos_1:pos_2])
-                layer_set.add(layer) 
-        max_layer = max(list(layer_set))
-        num_layers = max_layer + 1
-        return num_layers
+        return get_ctx_model_layers(model_dict)
     
     def get_teacher_emb_file(self):
         file_name = '%s_%s.emb' % (self.cfg.teacher_name, self.cfg.train_datasets[0]) 

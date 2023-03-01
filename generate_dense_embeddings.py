@@ -32,6 +32,7 @@ from dpr.utils.model_utils import (
     get_model_obj,
     load_states_from_checkpoint,
     move_to_device,
+    get_ctx_model_layers,
 )
 
 logger = logging.getLogger()
@@ -95,7 +96,18 @@ def main(cfg: DictConfig):
     logger.info("CFG:")
     logger.info("%s", OmegaConf.to_yaml(cfg))
 
-    tensorizer, encoder, _ = init_biencoder_components(cfg.encoder.encoder_model_type, cfg, inference_only=True)
+    student_num_layers = None
+    tag = ''
+    if cfg.is_teacher:
+        model_type = cfg.encoder.teacher_encoder_model_type
+    else:
+        model_type = cfg.encoder.student_encoder_model_type
+        student_num_layers = get_ctx_model_layers(saved_state.model_dict)
+        tag = 'Student'
+         
+    tensorizer, encoder, _ = init_biencoder_components(model_type, cfg, 
+                                                       student_num_layers=student_num_layers, 
+                                                       tag=tag, inference_only=True)
 
     encoder = encoder.ctx_model if cfg.encoder_type == "ctx" else encoder.question_model
 

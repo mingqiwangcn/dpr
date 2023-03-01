@@ -53,6 +53,7 @@ def get_student_bert_biencoder_components(cfg, inference_only: bool = False, **k
         dropout=dropout,
         pretrained=cfg.encoder.pretrained,
         teacher_encoder=question_teacher_encoder,
+        encoder_name='question',
         **kwargs
     )
     student_layers = None
@@ -66,6 +67,7 @@ def get_student_bert_biencoder_components(cfg, inference_only: bool = False, **k
         teacher_encoder=ctx_teacher_encoder,
         student_layers=student_layers,
         encoder_num_layers=kwargs.get('student_num_layers', None),
+        encoder_name='passage',
         **kwargs
     )
 
@@ -239,9 +241,9 @@ class StudentHFBertEncoder(BertModel):
     @classmethod
     def init_encoder(
         cls, cfg_name: str, projection_dim: int = 0, dropout: float = 0.1, pretrained: bool = True, 
-        teacher_encoder=None, student_layers=None, encoder_num_layers=None,  **kwargs
+        teacher_encoder=None, student_layers=None, encoder_num_layers=None, encoder_name=None,  **kwargs
     ) -> BertModel:
-        logger.info("Initializing HF BERT Encoder. cfg_name=%s", cfg_name)
+        logger.info("Initializing Student HF BERT Encoder. cfg_name=%s", cfg_name)
         cfg = BertConfig.from_pretrained(cfg_name if cfg_name else "bert-base-uncased")
         
         if dropout != 0:
@@ -271,12 +273,12 @@ class StudentHFBertEncoder(BertModel):
                 StudentHFBertEncoder.prune_layers(model, student_layers)
        
         if student_layers is None: 
-            logger.info('%s question encoder layers = %d' % (kwargs['tag'], len(model.encoder.layer)) )
+            logger.info('%s %s encoder layers = %d' % (kwargs['tag'], encoder_name, len(model.encoder.layer)) )
         else:
             if kwargs['tag'] == 'TA':
-                logger.info('%s passage encoder layers = %d' % (kwargs['tag'], len(model.encoder.layer))) 
+                logger.info('%s %s encoder layers = %d' % (kwargs['tag'], encoder_name, len(model.encoder.layer))) 
             else:
-                logger.info('%s passage encoder layers = %d, %s' % (kwargs['tag'], len(model.encoder.layer), 
+                logger.info('%s %s encoder layers = %d, %s' % (kwargs['tag'], encoder_name, len(model.encoder.layer), 
                         str(student_layers)))
         return model
 

@@ -1,9 +1,14 @@
 defaults:
-  - encoder: hf_bert
+  - encoder: student_hf_bert
   - ctx_sources: default_sources
+
+# Whether teacher model or student model
+is_teacher: False
 
 # A trained bi-encoder checkpoint file to initialize the model
 model_file:
+
+student_layers:
 
 # Name of the all-passages resource
 ctx_src:

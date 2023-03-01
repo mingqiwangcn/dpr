@@ -162,3 +162,17 @@ def load_states_from_checkpoint(model_file: str) -> CheckpointState:
     state_dict = torch.load(model_file, map_location=lambda s, l: default_restore_location(s, "cpu"))
     logger.info("model_state_dict keys %s", state_dict.keys())
     return CheckpointState(**state_dict)
+
+def get_ctx_model_layers(model_dict):
+    tag = 'ctx_model.encoder.layer.'
+    layer_set = set()
+    for key in model_dict:
+        if key.startswith(tag):
+            offset = key.index(tag)
+            pos_1 = offset + len(tag)
+            pos_2 = key.index('.', pos_1)
+            layer = int(key[pos_1:pos_2])
+            layer_set.add(layer) 
+    max_layer = max(list(layer_set))
+    num_layers = max_layer + 1
+    return num_layers
