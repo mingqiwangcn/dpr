@@ -206,6 +206,7 @@ class StudentBiEncoder(nn.Module):
                     'hard_neg_src':hard_neg_src,
                     'hard_neg_indices':sample_hard_neg_indices,
                     'neg_indicies':sample_neg_indices,
+                    'ctxs':all_ctxs,
                 }
                 batch_sample_ctx_info.append(sample_ctx_info)
             else:
@@ -337,7 +338,7 @@ class StudentBiEncoderNllLoss(object):
         if loss_scale:
             loss.mul_(loss_scale)
 
-        return loss, correct_predictions_count
+        return loss, correct_predictions_count, scores
 
     @staticmethod
     def get_scores(q_vector: T, ctx_vectors: T) -> T:

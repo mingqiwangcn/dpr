@@ -20,6 +20,8 @@ val_av_rank_start_epoch: 30
 seed: 12345
 checkpoint_file_name: dpr_biencoder
 
+do_log_score: False
+
 # A trained bi-encoder checkpoint file to initialize the model
 model_file:
 

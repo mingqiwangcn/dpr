@@ -11,3 +11,4 @@ model_file=${model} \
 dev_datasets=[nq_dev] \
 output_dir=student_eval \
 ignore_checkpoint_optimizer=True \
+do_log_score=True \

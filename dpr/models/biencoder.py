@@ -168,6 +168,7 @@ class BiEncoder(nn.Module):
         positive_ctx_indices = []
         hard_neg_ctx_indices = []
 
+        batch_sample_ctx_info = []
         for sample in samples:
             # ctx+ & [ctx-] composition
             # as of now, take the first(gold) ctx+ only
@@ -194,6 +195,12 @@ class BiEncoder(nn.Module):
             hard_neg_ctxs = hard_neg_ctxs[0:num_hard_negatives]
 
             all_ctxs = [positive_ctx] + neg_ctxs + hard_neg_ctxs
+            
+            sample_ctx_info = {
+                'ctxs':all_ctxs,
+            }
+            batch_sample_ctx_info.append(sample_ctx_info)
+
             hard_negatives_start_idx = 1
             hard_negatives_end_idx = 1 + len(hard_neg_ctxs)
 
@@ -240,6 +247,7 @@ class BiEncoder(nn.Module):
             positive_ctx_indices,
             hard_neg_ctx_indices,
             "question",
+            batch_sample_ctx_info,
         )
 
     def load_state(self, saved_state: CheckpointState, strict: bool = True):
@@ -291,7 +299,7 @@ class BiEncoderNllLoss(object):
         if loss_scale:
             loss.mul_(loss_scale)
 
-        return loss, correct_predictions_count
+        return loss, correct_predictions_count, scores
 
     @staticmethod
     def get_scores(q_vector: T, ctx_vectors: T) -> T:

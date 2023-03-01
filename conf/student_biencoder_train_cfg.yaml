@@ -33,6 +33,8 @@ student_layers:
 score_temperature: 6
 distill_loss_weight: 0.65
 
+do_log_score: False
+
 # A trained bi-encoder checkpoint file to initialize the model
 model_file:
 

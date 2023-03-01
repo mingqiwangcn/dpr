@@ -370,6 +370,12 @@ class StudentBiEncoderTrainer(object):
         cfg = self.cfg
         self.biencoder.eval()
 
+        f_o_score = None
+        if cfg.do_log_score and (epoch is None):
+            log_dir = os.path.dirname(logger.handlers[1].baseFilename)
+            score_file = os.path.join(log_dir, 'scores.jsonl')
+            f_o_score = open(score_file, 'w')
+
         if not self.dev_iterator:
             self.dev_iterator = self.get_data_iterator(
                 cfg.train.dev_batch_size, False, shuffle=False, rank=cfg.local_rank
@@ -405,7 +411,7 @@ class StudentBiEncoderTrainer(object):
             rep_positions = ds_cfg.selector.get_positions(biencoder_input.question_ids, self.tensorizer)
             encoder_type = ds_cfg.encoder_type
 
-            loss, correct_cnt = _do_biencoder_fwd_pass(
+            loss, correct_cnt, scores = _do_biencoder_fwd_pass(
                 self.biencoder,
                 biencoder_input,
                 self.tensorizer,
@@ -413,6 +419,10 @@ class StudentBiEncoderTrainer(object):
                 encoder_type=encoder_type,
                 rep_positions=rep_positions,
             )
+            
+            if f_o_score is not None:
+                self.write_scores(samples_batch, biencoder_input, f_o_score, scores)
+
             total_loss += loss.item()
             total_correct_predictions += correct_cnt
             batches += 1
@@ -423,7 +433,9 @@ class StudentBiEncoderTrainer(object):
                     time.time() - start_time,
                     loss.item(),
                 )
-
+        
+        if f_o_score:
+            f_o_score.close()
         total_loss = total_loss / batches
         total_samples = batches * cfg.train.dev_batch_size * self.distributed_factor
         correct_ratio = float(total_correct_predictions / total_samples)
@@ -436,6 +448,29 @@ class StudentBiEncoderTrainer(object):
             correct_ratio,
         )
         return total_loss, correct_ratio
+
+    def write_scores(self, samples_batch, biencoder_input, f_o_score, scores):
+        sorted_idxes = (-scores).argsort(dim=1).cpu().numpy().tolist()
+        batch_ctx_lst = []
+        query_lst = []
+        for offset, sample in enumerate(samples_batch):
+            qry_item = {}
+            qry_item['index'] = sample.index
+            qry_item['query'] = sample.query
+            qry_item['pos_ctx_index'] = biencoder_input.is_positive[offset]
+            qry_item['scores'] = scores[offset].cpu().numpy().tolist()
+            qry_item['arg_sort'] = sorted_idxes
+            
+            query_lst.append(qry_item)
+            ctxs = biencoder_input.sample_ctx_info[offset]['ctxs']
+            batch_ctx_lst.extend(ctxs)
+             
+        out_item = {
+            'ctxs':batch_ctx_lst,
+            'queries':query_lst,
+        }
+         
+        f_o_score.write(json.dumps(out_item) + '\n')
 
     def validate_average_rank(self) -> float:
         """
@@ -644,7 +679,7 @@ class StudentBiEncoderTrainer(object):
             rep_positions = selector.get_positions(biencoder_batch.question_ids, self.tensorizer)
 
             loss_scale = cfg.loss_scale_factors[dataset] if cfg.loss_scale_factors else None
-            loss, correct_cnt = _do_biencoder_fwd_pass(
+            loss, correct_cnt, _ = _do_biencoder_fwd_pass(
                 self.biencoder,
                 biencoder_batch,
                 self.tensorizer,
@@ -822,7 +857,7 @@ def _calc_loss(
         positive_idx_per_question = local_positive_idxs
         hard_negatives_per_question = local_hard_negatives_idxs
 
-    loss, is_correct = loss_function.calc(
+    loss, is_correct, scores = loss_function.calc(
         global_q_vector,
         global_ctxs_vector,
         positive_idx_per_question,
@@ -830,7 +865,7 @@ def _calc_loss(
         loss_scale=loss_scale,
     )
 
-    return loss, is_correct
+    return loss, is_correct, scores
 
 
 def _print_norms(model):
@@ -964,7 +999,7 @@ def _do_biencoder_fwd_pass(
 
     loss_function = StudentBiEncoderNllLoss()
     
-    student_loss, is_correct = _calc_loss(
+    student_loss, is_correct, student_scores = _calc_loss(
         cfg,
         loss_function,
         local_q_vector,
@@ -996,7 +1031,7 @@ def _do_biencoder_fwd_pass(
         loss = loss.mean()
     if cfg.train.gradient_accumulation_steps > 1:
         loss = loss / cfg.train.gradient_accumulation_steps
-    return loss, is_correct
+    return loss, is_correct, student_scores
 
 
 @hydra.main(config_path="conf", config_name="student_biencoder_train_cfg")
