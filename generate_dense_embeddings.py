@@ -125,7 +125,7 @@ def gen_ctx_vectors(
 
         results.extend([(ctx_ids[i], out[i].view(-1).numpy()) for i in range(out.size(0))])
 
-        if total % 100 == 0:
+        if total % 1000 == 0:
             logger.info("Encoded passages %d", total)
         
         if len(results) >= cfg.output_batch_size:
