@@ -16,6 +16,9 @@ import pathlib
 import pickle
 from typing import List, Tuple
 
+import threading
+import queue
+
 import hydra
 import numpy as np
 import torch
@@ -23,7 +26,7 @@ from omegaconf import DictConfig, OmegaConf
 from torch import nn
 
 from dpr.data.biencoder_data import BiEncoderPassage
-from dpr.models import init_biencoder_components
+from dpr.models import init_biencoder_components, get_bert_tensorizer
 from dpr.options import set_cfg_params_from_state, setup_cfg_gpu, setup_logger
 
 from dpr.utils.data_utils import Tensorizer
@@ -38,23 +41,59 @@ from dpr.utils.model_utils import (
 logger = logging.getLogger()
 setup_logger(logger)
 
+queue_token_tensor = queue.Queue()
+
+def tok_worker(start_idx, end_idx):
+    worker_tensorizer = get_bert_tensorizer(cfg)
+    idx = start_idx
+    bsz = cfg.batch_size
+    insert_title = True
+    count = 0
+    for batch_start in range(start_idx, end_idx, bsz):
+        batch_end = min(batch_start + bsz, end_idx)
+        batch = ctx_data[batch_start : batch_end]
+        batch_token_tensors = [
+            worker_tensorizer.text_to_tensor(ctx[1].text, title=ctx[1].title if insert_title else None) for ctx in batch
+        ]
+        ctx_ids = [r[0] for r in batch]
+        
+        out_item = [ctx_ids, batch_token_tensors]
+        queue_token_tensor.put(out_item)
+        count += len(ctx_ids)
+
+
+def start_tok_threading():
+    num_rows = len(ctx_data)
+    num_workers = cfg.num_tok_workers
+    part_size = num_rows // num_workers
+
+    start_idx = 0
+    for w_idx in range(num_workers):
+        if w_idx < (num_workers - 1):
+            end_idx = start_idx + part_size
+        else:
+            end_idx = num_rows
+        
+        threading.Thread(target=tok_worker, args=(start_idx, end_idx, )).start()
+        start_idx = end_idx
+
 
 def gen_ctx_vectors(
-    cfg: DictConfig,
-    ctx_rows: List[Tuple[object, BiEncoderPassage]],
+    #cfg: DictConfig,
+    #ctx_rows: List[Tuple[object, BiEncoderPassage]],
     model: nn.Module,
     tensorizer: Tensorizer,
-    insert_title: bool = True,
+    #insert_title: bool = True,
 ) -> List[Tuple[object, np.array]]:
-    n = len(ctx_rows)
-    bsz = cfg.batch_size
+    
+    start_tok_threading()
+
+    num_ctx_rows = len(ctx_data)
     total = 0
     results = []
-    for j, batch_start in enumerate(range(0, n, bsz)):
-        batch = ctx_rows[batch_start : batch_start + bsz]
-        batch_token_tensors = [
-            tensorizer.text_to_tensor(ctx[1].text, title=ctx[1].title if insert_title else None) for ctx in batch
-        ]
+    while True:
+        item = queue_token_tensor.get()
+        batch_token_tensors = item[1] 
 
         ctx_ids_batch = move_to_device(torch.stack(batch_token_tensors, dim=0), cfg.device)
         ctx_seg_batch = move_to_device(torch.zeros_like(ctx_ids_batch), cfg.device)
@@ -62,33 +101,30 @@ def gen_ctx_vectors(
         with torch.no_grad():
             _, out, _ = model(ctx_ids_batch, ctx_seg_batch, ctx_attn_mask)
         out = out.cpu()
-
-        ctx_ids = [r[0] for r in batch]
-        extra_info = []
-        if len(batch[0]) > 3:
-            extra_info = [r[3:] for r in batch]
-
+        
+        ctx_ids = item[0]
         assert len(ctx_ids) == out.size(0)
         total += len(ctx_ids)
 
-        # TODO: refactor to avoid 'if'
-        if extra_info:
-            results.extend([(ctx_ids[i], out[i].view(-1).numpy(), *extra_info[i]) for i in range(out.size(0))])
-        else:
-            results.extend([(ctx_ids[i], out[i].view(-1).numpy()) for i in range(out.size(0))])
+        results.extend([(ctx_ids[i], out[i].view(-1).numpy()) for i in range(out.size(0))])
 
         if total % 10 == 0:
             logger.info("Encoded passages %d", total)
+
+        if total == num_ctx_rows:
+            break 
+
     return results
 
 
 @hydra.main(config_path="conf", config_name="gen_embs")
-def main(cfg: DictConfig):
+def main(cfg_data: DictConfig):
 
-    assert cfg.model_file, "Please specify encoder checkpoint as model_file param"
-    assert cfg.ctx_src, "Please specify passages source as ctx_src param"
+    assert cfg_data.model_file, "Please specify encoder checkpoint as model_file param"
+    assert cfg_data.ctx_src, "Please specify passages source as ctx_src param"
 
-    cfg = setup_cfg_gpu(cfg)
+    global cfg
+    cfg = setup_cfg_gpu(cfg_data)
 
     saved_state = load_states_from_checkpoint(cfg.model_file)
     set_cfg_params_from_state(saved_state.encoder_params, cfg)
@@ -150,9 +186,10 @@ def main(cfg: DictConfig):
         end_idx,
         len(all_passages),
     )
-    shard_passages = all_passages[start_idx:end_idx]
+    global ctx_data
+    ctx_data = all_passages[start_idx:end_idx]
 
-    data = gen_ctx_vectors(cfg, shard_passages, encoder, tensorizer, True)
+    data = gen_ctx_vectors(encoder, tensorizer) #, True)
 
     file = cfg.out_file + "_" + str(cfg.shard_id)
     pathlib.Path(os.path.dirname(file)).mkdir(parents=True, exist_ok=True)

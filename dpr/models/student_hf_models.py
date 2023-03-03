@@ -21,12 +21,12 @@ from torch import nn
 if transformers.__version__.startswith("4"):
     from transformers import BertConfig, BertModel
     from transformers import AdamW
-    from transformers import BertTokenizer
+    from transformers import BertTokenizerFast
     from transformers import RobertaTokenizer
 else:
     from transformers.modeling_bert import BertConfig, BertModel
     from transformers.optimization import AdamW
-    from transformers.tokenization_bert import BertTokenizer
+    from transformers.tokenization_bert import BertTokenizerFast
     from transformers.tokenization_roberta import RobertaTokenizer
 
 from dpr.utils.data_utils import Tensorizer
@@ -206,7 +206,7 @@ def get_optimizer_grouped(
 
 
 def get_bert_tokenizer(pretrained_cfg_name: str, do_lower_case: bool = True):
-    return BertTokenizer.from_pretrained(pretrained_cfg_name, do_lower_case=do_lower_case)
+    return BertTokenizerFast.from_pretrained(pretrained_cfg_name, do_lower_case=do_lower_case)
 
 
 def get_roberta_tokenizer(pretrained_cfg_name: str, do_lower_case: bool = True):
@@ -337,7 +337,7 @@ class StudentHFBertEncoder(BertModel):
 
 
 class BertTensorizer(Tensorizer):
-    def __init__(self, tokenizer: BertTokenizer, max_length: int, pad_to_max: bool = True):
+    def __init__(self, tokenizer: BertTokenizerFast, max_length: int, pad_to_max: bool = True):
         self.tokenizer = tokenizer
         self.max_length = max_length
         self.pad_to_max = pad_to_max

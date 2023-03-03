@@ -6,7 +6,7 @@
 # LICENSE file in the root directory of this source tree.
 
 import importlib
-
+from .student_hf_models import get_bert_tensorizer
 """
  'Router'-like set of methods for component initialization with lazy imports 
 """
