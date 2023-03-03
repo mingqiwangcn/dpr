@@ -31,6 +31,9 @@ num_shards: 1
 # Number of tokenization workers
 num_tok_workers: 1
 
+# Output batch size
+output_batch_size: 5000000
+
 # Batch size for the passage encoder forward pass (works in DataParallel mode)
 batch_size: 32
 

@@ -42,6 +42,8 @@ logger = logging.getLogger()
 setup_logger(logger)
 
 queue_token_tensor = queue.Queue()
+queue_output = queue.Queue()
+queue_output_stat = queue.Queue()
 
 def tok_worker(start_idx, end_idx):
     worker_tensorizer = get_bert_tensorizer(cfg)
@@ -77,6 +79,20 @@ def start_tok_threading():
         threading.Thread(target=tok_worker, args=(start_idx, end_idx, )).start()
         start_idx = end_idx
 
+def output_worker(part_idx):
+    data = queue_output.get()
+    file = cfg.out_file + "_" + str(cfg.shard_id) + "_part_" + str(part_idx) 
+    pathlib.Path(os.path.dirname(file)).mkdir(parents=True, exist_ok=True)
+    logger.info("Writing part %d with size %d results to %s" % (part_idx, len(data), file))
+    with open(file, mode="wb") as f:
+        pickle.dump(data, f)
+
+    queue_output_stat.put([part_idx, len(data), file])
+
+def start_output_threading(results, part_idx):
+    queue_output.put(results)
+    threading.Thread(target=output_worker, args=(part_idx, )).start()
+     
 
 def gen_ctx_vectors(
     #cfg: DictConfig,
@@ -84,13 +100,14 @@ def gen_ctx_vectors(
     model: nn.Module,
     tensorizer: Tensorizer,
     #insert_title: bool = True,
-) -> List[Tuple[object, np.array]]:
+):
     
     start_tok_threading()
 
     num_ctx_rows = len(ctx_data)
     total = 0
     results = []
+    output_part_idx = 0
     while True:
         item = queue_token_tensor.get()
         batch_token_tensors = item[1] 
@@ -108,14 +125,23 @@ def gen_ctx_vectors(
 
         results.extend([(ctx_ids[i], out[i].view(-1).numpy()) for i in range(out.size(0))])
 
-        if total % 10 == 0:
+        if total % 100 == 0:
             logger.info("Encoded passages %d", total)
+        
+        if len(results) >= cfg.output_batch_size:
+            start_output_threading(results, output_part_idx)
+            output_part_idx += 1
+            results = []
 
         if total == num_ctx_rows:
             break 
 
-    return results
-
+    if len(results) > 0:
+        start_output_threading(results, output_part_idx)
+        output_part_idx += 1
+        results = []
+    
+    return output_part_idx
 
 @hydra.main(config_path="conf", config_name="gen_embs")
 def main(cfg_data: DictConfig):
@@ -188,17 +214,24 @@ def main(cfg_data: DictConfig):
     )
     global ctx_data
     ctx_data = all_passages[start_idx:end_idx]
+    num_output_parts = gen_ctx_vectors(encoder, tensorizer) #, True)
+    show_output_stat(num_output_parts) 
 
-    data = gen_ctx_vectors(encoder, tensorizer) #, True)
 
-    file = cfg.out_file + "_" + str(cfg.shard_id)
-    pathlib.Path(os.path.dirname(file)).mkdir(parents=True, exist_ok=True)
-    logger.info("Writing results to %s" % file)
-    with open(file, mode="wb") as f:
-        pickle.dump(data, f)
-
-    logger.info("Total passages processed %d. Written to %s", len(data), file)
-
+def show_output_stat(num_output_parts):
+    num_part = 0
+    output_size = 0
+    while True:
+        out_stat = queue_output_stat.get()
+        part_idx = out_stat[0]
+        part_size = out_stat[1]
+        out_file = out_stat[2]
+        logger.info("Passages part %d processed %d. Written to %s", part_idx, part_size, out_file)
+        num_part += 1
+        output_size += out_stat[1]
+        if num_part == num_output_parts:
+            break
+    logger.info("Total passages processed %d.", output_size)  
 
 if __name__ == "__main__":
     main()
