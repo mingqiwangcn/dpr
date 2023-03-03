@@ -37,7 +37,12 @@ from dpr.models.biencoder import (
 )
 from dpr.options import setup_logger, setup_cfg_gpu, set_cfg_params_from_state
 from dpr.utils.data_utils import Tensorizer
-from dpr.utils.model_utils import setup_for_distributed_mode, get_model_obj, load_states_from_checkpoint
+from dpr.utils.model_utils import (
+    setup_for_distributed_mode, 
+    get_model_obj, 
+    load_states_from_checkpoint,
+    get_ctx_model_layers,
+)
 
 logger = logging.getLogger()
 setup_logger(logger)
@@ -70,11 +75,10 @@ def generate_question_vectors(
                 batch_tensors = [q for q in batch_questions]
             else:
                 batch_tensors = [tensorizer.text_to_tensor(q) for q in batch_questions]
-
-            # TODO: this only works for Wav2vec pipeline but will crash the regular text pipeline
-            max_vector_len = max(q_t.size(1) for q_t in batch_tensors)
-            min_vector_len = min(q_t.size(1) for q_t in batch_tensors)
-
+            
+            max_vector_len = max(q_t.size(0) for q_t in batch_tensors)
+            min_vector_len = min(q_t.size(0) for q_t in batch_tensors)
+            assert(max_vector_len == min_vector_len)
             if max_vector_len != min_vector_len:
                 # TODO: _pad_to_len move to utils
                 from dpr.models.reader import _pad_to_len
@@ -479,7 +483,19 @@ def main(cfg: DictConfig):
     logger.info("CFG (after gpu  configuration):")
     logger.info("%s", OmegaConf.to_yaml(cfg))
 
-    tensorizer, encoder, _ = init_biencoder_components(cfg.encoder.encoder_model_type, cfg, inference_only=True)
+    student_num_layers = None
+    tag = ''
+    if cfg.is_teacher:
+        model_type = cfg.encoder.teacher_encoder_model_type
+    else:
+        model_type = cfg.encoder.student_encoder_model_type
+        student_num_layers = get_ctx_model_layers(saved_state.model_dict)
+        tag = 'Student'
+
+    tensorizer, encoder, _ = init_biencoder_components(model_type, cfg, 
+                                                       student_num_layers=student_num_layers,
+                                                       tag=tag,
+                                                       inference_only=True)
 
     logger.info("Loading saved model state ...")
     encoder.load_state(saved_state, strict=False)

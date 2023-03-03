@@ -1,5 +1,5 @@
 defaults:
-  - encoder: hf_bert # defines encoder initialization parameters
+  - encoder: student_hf_bert # defines encoder initialization parameters
   - datasets: retriever_default # contains a list of all possible sources of queries for evaluation. Specific set is selected by qa_dataset parameter
   - ctx_sources: default_sources # contains a list of all possible passage sources. Specific passages sources selected by ctx_datatsets parameter
 
@@ -15,6 +15,10 @@ indexers:
 
 # the name of the queries dataset from the 'datasets' config group
 qa_dataset:
+
+# Whether teacher model or student model
+is_teacher: False
+student_layers:
 
 # a list of names of the passages datasets from the 'ctx_sources' config group
 ctx_datatsets:
