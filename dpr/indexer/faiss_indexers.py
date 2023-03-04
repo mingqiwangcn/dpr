@@ -28,6 +28,12 @@ class DenseIndexer(object):
 
     def init_index(self, vector_sz: int):
         raise NotImplementedError
+    
+    def train_needed(self):
+        return False
+
+    def create_train_data(self, emb_files):
+        raise NotImplementedError
 
     def index_data(self, data: List[Tuple[object, np.array]]):
         raise NotImplementedError

@@ -7,6 +7,9 @@ indexers:
   flat:
     _target_: dpr.indexer.faiss_indexers.DenseFlatIndexer
 
+  ivfpq:
+    _target_: dpr.indexer.ivfpq_indexer.IVFPQIndexer
+
   hnsw:
     _target_: dpr.indexer.faiss_indexers.DenseHNSWFlatIndexer
 

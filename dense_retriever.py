@@ -19,6 +19,7 @@ from typing import List, Tuple, Dict, Iterator
 
 import hydra
 import numpy as np
+import random
 import torch
 from omegaconf import DictConfig, OmegaConf
 from torch import Tensor as T
@@ -148,12 +149,32 @@ class LocalFaissRetriever(DenseRetriever):
         super().__init__(question_encoder, batch_size, tensorizer)
         self.index = index
 
+    def create_train_data(self, vector_files):
+        sample_ratio = 0.2
+        train_emb_lst = []
+        for vec_file in vector_files:
+            logger.info("Reading file %s to prepare train data", vec_file)
+            with open(vec_file, 'rb') as f:
+                part_data = pickle.load(f)
+                N = int(len(part_data) * sample_ratio)
+                train_part_data = random.sample(part_data, N) 
+                part_emb_lst = [a[1].reshape(1, -1) for a in train_part_data]    
+                train_emb_lst.extend(part_emb_lst)
+        
+        train_embs = np.concatenate(train_emb_lst, axis=0) 
+        return train_embs
+
     def index_encoded_data(
         self,
         vector_files: List[str],
         buffer_size: int,
         path_id_prefixes: List = None,
     ):
+        #train if needed
+        if self.index.train_needed():
+            train_vectors = self.create_train_data(vector_files)
+            self.index.train(train_vectors)
+
         """
         Indexes encoded passages takes form a list of files
         :param vector_files: file names to get passages vectors from
