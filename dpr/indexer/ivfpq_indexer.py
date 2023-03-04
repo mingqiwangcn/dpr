@@ -12,7 +12,7 @@ class IVFPQIndexer(DenseIndexer):
         self.counter = 0
          
     def init_index(self, vector_sz):
-        self.index = faiss.index_factory(vector_sz, "IVF256,PQ32x8", faiss.METRIC_INNER_PRODUCT)
+        self.index = faiss.index_factory(vector_sz, "OPQ64_768,IVF65536,PQ64", faiss.METRIC_INNER_PRODUCT)
     
     def train_needed(self):
         return True
@@ -50,7 +50,8 @@ class IVFPQIndexer(DenseIndexer):
     
     def search_knn(self, query, top_n=100): 
         logger.info('Searching')
-        self.index.nprobe = 128
+        obj = faiss.extract_index_ivf(self.index)
+        obj.nprobe = 128
         scores, p_ids = self.index.search(query, top_n)
         db_ids = [['wiki:' + str(a) for a in item] for item in p_ids]
         result = [(db_ids[i], scores[i]) for i in range(len(db_ids))]
