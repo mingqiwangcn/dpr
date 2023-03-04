@@ -12,7 +12,7 @@ class IVFPQIndexer(DenseIndexer):
         self.counter = 0
          
     def init_index(self, vector_sz):
-        self.index = faiss.index_factory(vector_sz, "IVF65536,PQ32x16", faiss.METRIC_INNER_PRODUCT)
+        self.index = faiss.index_factory(vector_sz, "IVF256,PQ32x8", faiss.METRIC_INNER_PRODUCT)
     
     def train_needed(self):
         return True
