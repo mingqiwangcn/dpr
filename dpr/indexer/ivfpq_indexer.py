@@ -19,11 +19,16 @@ class IVFPQIndexer(DenseIndexer):
      
     def train(self, vectors):
         logger.info("training index with sample size %d" % len(vectors))
+        index_ivf = faiss.extract_index_ivf(self.index)
+        logger.info('d=%d' % index_ivf.d)
+        cls_index = faiss.index_cpu_to_all_gpus(faiss.IndexFlatL2(index_ivf.d))
+        index_ivf.clustering_index = cls_index
         self.index.train(vectors)
         logger.info('training done')
    
     def index_data(self, data):
-        self.index.set_direct_map_type(faiss.DirectMap.Hashtable)
+        index_ivf = faiss.extract_index_ivf(self.index)
+        index_ivf.set_direct_map_type(faiss.DirectMap.Hashtable)
         p_ids = [int(a[0].split(':')[1]) for a in data]
         emb_lst = [np.reshape(a[1], (1, -1)) for a in data]
         p_embs = np.concatenate(emb_lst, axis=0)
