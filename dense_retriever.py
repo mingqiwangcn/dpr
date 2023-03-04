@@ -150,7 +150,7 @@ class LocalFaissRetriever(DenseRetriever):
         self.index = index
 
     def create_train_data(self, vector_files):
-        sample_ratio = 0.2
+        sample_ratio = 0.3
         train_emb_lst = []
         for vec_file in vector_files:
             logger.info("Reading file %s to prepare train data", vec_file)
