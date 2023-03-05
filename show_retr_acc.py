@@ -2,6 +2,8 @@ import json
 import numpy as np
 from tqdm import tqdm
 import pandas as pd
+import glob
+import os
 
 def show_acc(tag, rank_file, top_k_lst):
     res_dict = {}
@@ -100,9 +102,40 @@ def write_queries(out_file, index_lst, teacher_score_dict, student_score_dict):
     df = pd.DataFrame(out_data, columns=col_names)
     df.to_csv(out_file)
 
+def show_retr_acc(file_pattern):
+    output_lst = []
+    file_lst = glob.glob('./outputs/*/*/*%s*.json' % file_pattern)
+    target_str = 'results: top k documents hits accuracy'
+    for retr_file in file_lst:
+        out_dir = os.path.dirname(retr_file)
+        log_file = os.path.join(out_dir, 'dense_retriever.log')
+        text_lst = []
+        with open(log_file) as f:
+            for line in f:
+                text = line.strip()
+                text_lst.append(text)
+        acc_text = text_lst[-2]
+        offset = acc_text.find(target_str)
+        if offset < 0:
+            continue
+        pos_1 = acc_text.index('[', offset)
+        pos_2 = acc_text.rindex(']')
+        acc_str_lst = acc_text[pos_1+1:pos_2].split(',')
+        acc_lst = [float(a) * 100 for a in acc_str_lst]
+        top_20_acc = acc_lst[19]
+        top_100_acc = acc_lst[-1]
+        base_file_name = os.path.basename(retr_file)
+        out_str = '%s R@20=%.2f R@100=%.2f' % (base_file_name, top_20_acc, top_100_acc)
+        output_lst.append(out_str)
+    
+    output_lst.sort()
+    for out_str in output_lst:
+        print(out_str) 
+
 def main():
     #cmp_teacher_student() 
-    show_rank_accuracy()
+    #show_rank_accuracy()
+    show_retr_acc('teacher_')
 
 def show_rank_accuracy():
     top_k_lst = [20, 50, 100, 150, 200]
