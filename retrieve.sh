@@ -7,7 +7,7 @@ indexer=$1
 fac_str=$2
 tag=$3
 is_teacher=false
-model=/home/cc/code/dpr/train_models/dpr_student_precom_16_biencoder.71
+model=/home/cc/code/catalog/dpr/train_models/dpr_student_precom_16_biencoder.71
 python dense_retriever.py \
 is_teacher=${is_teacher} \
 model_file=${model} \
