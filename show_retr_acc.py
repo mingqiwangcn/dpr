@@ -101,31 +101,13 @@ def write_queries(out_file, index_lst, teacher_score_dict, student_score_dict):
     df.to_csv(out_file)
 
 def main():
-    cmp_teacher_student() 
-     
+    #cmp_teacher_student() 
+    show_rank_accuracy()
 
 def show_rank_accuracy():
     top_k_lst = [20, 50, 100, 150, 200]
    
-    student_rank_file = './outputs/2023-02-26/13-37-08/rank.jsonl'
-    show_acc('Student', student_rank_file, top_k_lst)
-    
-    student_rank_file = './outputs/2023-02-26/17-16-33/rank.jsonl'
-    show_acc('Student', student_rank_file, top_k_lst)
-
-    student_rank_file = './outputs/2023-02-27/00-45-45/rank.jsonl'
-    show_acc('Student', student_rank_file, top_k_lst)
-    
-    student_rank_file = './outputs/2023-02-27/12-01-55/rank.jsonl'
-    show_acc('Student', student_rank_file, top_k_lst)
-    
-    student_rank_file = './outputs/2023-02-27/17-00-36/rank.jsonl'
-    show_acc('Student', student_rank_file, top_k_lst)
-    
-    student_rank_file = './outputs/2023-02-28/00-00-47/rank.jsonl'
-    show_acc('Student', student_rank_file, top_k_lst)
-    
-    student_rank_file = './outputs/2023-02-28/10-01-20/rank.jsonl'
+    student_rank_file = './outputs/2023-03-04/00-49-01/rank.jsonl'
     show_acc('Student', student_rank_file, top_k_lst)
 
 if __name__ == '__main__':
