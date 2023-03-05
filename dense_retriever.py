@@ -574,6 +574,8 @@ def main(cfg: DictConfig):
     else:
         index = hydra.utils.instantiate(cfg.indexers[cfg.indexer])
         logger.info("Local Index class %s ", type(index))
+        if index.factory_string_needed():
+            index.set_factory_string(cfg.factory_string)
         index_buffer_sz = index.buffer_size
         index.init_index(vector_size)
         retriever = LocalFaissRetriever(encoder, cfg.batch_size, tensorizer, index)

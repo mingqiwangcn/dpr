@@ -26,6 +26,12 @@ class DenseIndexer(object):
         self.index_id_to_db_id = []
         self.index = None
 
+    def factory_string_needed(self):
+        return False
+    
+    def set_factory_string(self, fac_str):
+        raise NotImplementedError
+
     def init_index(self, vector_sz: int):
         raise NotImplementedError
     
