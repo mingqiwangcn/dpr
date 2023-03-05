@@ -7,7 +7,7 @@ indexer=$1
 fac_str=$2
 tag=$3
 is_teacher=true
-model=/home/cc/code/dpr/downloads/checkpoint/retriever/single-adv-hn/nq/bert-base-encoder.cp \
+model=/home/cc/code/catalog/dpr/downloads/checkpoint/retriever/single-adv-hn/nq/bert-base-encoder.cp \
 python dense_retriever.py \
 is_teacher=${is_teacher} \
 model_file=${model} \
