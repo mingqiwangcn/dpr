@@ -657,7 +657,7 @@ class StudentBiEncoderTrainer(object):
                 num_hard_negatives,
                 num_other_negatives,
                 shuffle=True,
-                shuffle_positives=shuffle_positives,
+                shuffle_positives=True,
                 query_token=special_token,
             )
 

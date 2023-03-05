@@ -143,8 +143,12 @@ def get_model_obj(model: nn.Module):
 
 
 def get_model_file(args, file_prefix) -> str:
-    if args.model_file and os.path.exists(args.model_file):
-        return args.model_file
+    if args.model_file:
+        model_exists = os.path.exists(args.model_file)
+        if model_exists:
+            return args.model_file
+        else:
+            assert model_exists, "%s does not exist" % args.model_file
     else:
         return None
 
