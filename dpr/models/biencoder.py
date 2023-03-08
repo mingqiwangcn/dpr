@@ -257,8 +257,9 @@ class BiEncoder(nn.Module):
         #    del saved_state.model_dict["ctx_model.embeddings.position_ids"]
         res = self.load_state_dict(saved_state.model_dict, strict=strict)
         if not strict:
-            keys = ['question_model.embeddings.position_ids', 'ctx_model.embeddings.position_ids']
-            assert (res.missing_keys == keys)
+            if len(res.missing_keys) > 0:
+                keys = ['question_model.embeddings.position_ids', 'ctx_model.embeddings.position_ids']
+                assert (res.missing_keys == keys)
 
     def get_state_dict(self):
         return self.state_dict()
