@@ -10,9 +10,18 @@ class IVFPQIndexer(DenseIndexer):
     def __init__(self, buffer_size: int = 1000000):
         super(IVFPQIndexer, self).__init__(buffer_size=buffer_size)
         self.counter = 0
-         
+        self.fac_str = None
+    
+    def factory_string_needed(self):
+        return True
+        
+    def set_factory_string(self, fac_str):
+        self.fac_str = fac_str
+     
     def init_index(self, vector_sz):
-        self.index = faiss.index_factory(vector_sz, "OPQ64_768,IVF65536,PQ64", faiss.METRIC_INNER_PRODUCT)
+        #example factory string, "OPQ64_768,IVF65536,PQ64"
+        assert self.fac_str is not None, "Factory string must be specified"
+        self.index = faiss.index_factory(vector_sz, self.fac_str, faiss.METRIC_INNER_PRODUCT)
     
     def train_needed(self):
         return True

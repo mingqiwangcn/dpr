@@ -12,4 +12,5 @@ jsonlines
 soundfile
 editdistance
 gnureadline
+pandas
 

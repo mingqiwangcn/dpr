@@ -23,6 +23,8 @@ qa_dataset:
 is_teacher: False
 student_layers:
 
+factory_string:
+
 # a list of names of the passages datasets from the 'ctx_sources' config group
 ctx_datatsets:
 
